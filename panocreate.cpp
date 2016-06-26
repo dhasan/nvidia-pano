@@ -680,77 +680,104 @@ int main(){
 		}
 	}
 	ptr = fopen("out.raw", "wb+");
-	j=0;i=0;
-	// for (j=0;j<OUT_Y;j++){
-	// 	phi = (j * (datum::pi)/OUT_Y) - datum::pi/2;
-	// 	for(i=0;i<OUT_X;i++){
-	// 		theta = (i * ((2*datum::pi)/OUT_X)) - datum::pi;
-
 
 	for (j=0,phi=-datum::pi/2;phi<datum::pi/2;phi+=((datum::pi)/OUT_Y),j++){
-		///i=0;
 		for(i=0,theta=0.00000001;theta<2*datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
 			
 			x = 2*cos(phi)*cos(theta);
 			y = 2*sin(phi); 
 			z = 2*cos(phi)*sin(theta);
+
+			if (fp!=-1){
+				//TODO: set only xyz deps
+				t 	<< -x << planes[fp]->dots[1](0) - planes[fp]->dots[0](0) << planes[fp]->dots[2](0) - planes[fp]->dots[0](0) << endr
+					<< -y << planes[fp]->dots[1](1) - planes[fp]->dots[0](1) << planes[fp]->dots[2](1) - planes[fp]->dots[0](1) << endr
+					<< -z << planes[fp]->dots[1](2) - planes[fp]->dots[0](2) << planes[fp]->dots[2](2) - planes[fp]->dots[0](2) << endr;
+				v 	<< -planes[fp]->dots[0](0) << endr
+					<< -planes[fp]->dots[0](1) << endr
+					<< -planes[fp]->dots[0](2) << endr;
+			
+				o = inv(t) * v;
+				if ((o(1)>=0 && o(1)<=1) && (o(2)>=0 && o(2)<=1) && ((o(1) + o(2))<=1) && (o(0)>=0) && (o(0)<=1)){
+					in 	<< x*o(0) << endr
+						<< y*o(0) << endr
+						<< z*o(0) << endr
+						<< 1 << endr;
+					if (planes[p]->source==NULL){
+						printf("error!\n");
+						return -1;
+					}
+					//m =  planes[p]->source->world_matrix * planes[p]->source_matrix;
+					
+					crd = m * in;
+					
+					if ((i>=0) && (i<OUT_X) && (j>=0) && (j<OUT_Y)){
+						dotarray[j][i].sourceid = p;
+						if ((fp==0) || (fp==1))
+							test[j][i] = 0xFF000080;
+						else if ((fp==2) || (fp==3))
+							test[j][i] = 0x00FF0080;
+						else if ((fp==4) || (fp==5))
+							test[j][i] = 0x0000FF80;
+						else if ((fp==6) || (fp==7))
+							test[j][i] = 0xFFFF0080;
+						else if ((fp==8) || (fp==9))
+							test[j][i] = 0xFF00FF80;
+						else
+							test[j][i] = 0x00FFFF80;
+						dotarray[j][i].x = crd(0);
+						dotarray[j][i].y = crd(1);
+					}	
+					continue;
+				}
+			}
 			
 			for (p=0;p<PLANE_COUNT;p++){
-				if (1){
-				//if (p!=fp){
-					t 	<< -x << planes[p]->dots[1](0) - planes[p]->dots[0](0) << planes[p]->dots[2](0) - planes[p]->dots[0](0) << endr
-						<< -y << planes[p]->dots[1](1) - planes[p]->dots[0](1) << planes[p]->dots[2](1) - planes[p]->dots[0](1) << endr
-						<< -z << planes[p]->dots[1](2) - planes[p]->dots[0](2) << planes[p]->dots[2](2) - planes[p]->dots[0](2) << endr;
-					v 	<< -planes[p]->dots[0](0) << endr
-						<< -planes[p]->dots[0](1) << endr
-						<< -planes[p]->dots[0](2) << endr;
-				
-					o = inv(t) * v;
-
-					if ((o(1)>=0 && o(1)<=1) && (o(2)>=0 && o(2)<=1) && ((o(1) + o(2))<=1) && (o(0)>=0) && (o(0)<=1)){
-						in 	<< x*o(0) << endr
-							<< y*o(0) << endr
-							<< z*o(0) << endr
-							<< 1 << endr;
-						if (planes[p]->source==NULL){
-							printf("error!\n");
-							return -1;
-						}
-						m =  planes[p]->source->world_matrix * planes[p]->source_matrix;
-						
-						crd = m * in;
-						// if (((i<0) || (i>OUT_X)) || (j>OUT_Y) || (j<0))
-						// 	printf("%d %d\n",i,j );
-						//printf("%d\n",p );
-						//printf("%d %d %d\n",p,i,j);
-
-						if ((i>=0) && (i<OUT_X) && (j>=0) && (j<OUT_Y)){
-							dotarray[j][i].sourceid = p;
-							if ((p==0) || (p==1))
-								test[j][i] = 0xFF000080;
-							else if ((p==2) || (p==3))
-								test[j][i] = 0x00FF0080;
-							else if ((p==4) || (p==5))
-								test[j][i] = 0x0000FF80;
-							else if ((p==6) || (p==7))
-								test[j][i] = 0xFFFF0080;
-							else if ((p==8) || (p==9))
-								test[j][i] = 0xFF00FF80;
-							else
-								test[j][i] = 0x00FFFF80;
-							dotarray[j][i].x = crd(0);
-							dotarray[j][i].y = crd(1);
-						}	
-
+				t 	<< -x << planes[p]->dots[1](0) - planes[p]->dots[0](0) << planes[p]->dots[2](0) - planes[p]->dots[0](0) << endr
+					<< -y << planes[p]->dots[1](1) - planes[p]->dots[0](1) << planes[p]->dots[2](1) - planes[p]->dots[0](1) << endr
+					<< -z << planes[p]->dots[1](2) - planes[p]->dots[0](2) << planes[p]->dots[2](2) - planes[p]->dots[0](2) << endr;
+				v 	<< -planes[p]->dots[0](0) << endr
+					<< -planes[p]->dots[0](1) << endr
+					<< -planes[p]->dots[0](2) << endr;
+			
+				o = inv(t) * v;
+				if ((o(1)>=0 && o(1)<=1) && (o(2)>=0 && o(2)<=1) && ((o(1) + o(2))<=1) && (o(0)>=0) && (o(0)<=1)){
+					in 	<< x*o(0) << endr
+						<< y*o(0) << endr
+						<< z*o(0) << endr
+						<< 1 << endr;
+					if (planes[p]->source==NULL){
+						printf("error!\n");
+						return -1;
 					}
-				
+					m =  planes[p]->source->world_matrix * planes[p]->source_matrix;
+					
+					crd = m * in;
+					
+					if ((i>=0) && (i<OUT_X) && (j>=0) && (j<OUT_Y)){
+						dotarray[j][i].sourceid = p;
+						if ((p==0) || (p==1))
+							test[j][i] = 0xFF000080;
+						else if ((p==2) || (p==3))
+							test[j][i] = 0x00FF0080;
+						else if ((p==4) || (p==5))
+							test[j][i] = 0x0000FF80;
+						else if ((p==6) || (p==7))
+							test[j][i] = 0xFFFF0080;
+						else if ((p==8) || (p==9))
+							test[j][i] = 0xFF00FF80;
+						else
+							test[j][i] = 0x00FFFF80;
+						dotarray[j][i].x = crd(0);
+						dotarray[j][i].y = crd(1);
+					}	
+					fp = p;
+					break;
 				}
-				 
 			}
-			//i++;
+			
 		}
-		//printf("phi: %f\n", phi);
-		//j++;
+		
 		if (!(j%24)){
 			printf("%d%%...\n", j/24);
 		}
