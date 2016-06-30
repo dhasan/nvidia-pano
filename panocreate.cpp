@@ -39,6 +39,7 @@ struct source {
 	/*out*/
 	vec 	normal;
 	mat 	world_matrix;
+	unsigned int 	*data;
 };
 
 struct plane {
@@ -69,9 +70,13 @@ struct outdot {
 struct outdot dotarray[OUT_Y][OUT_X];
 unsigned int test[OUT_Y][OUT_X];
 
+struct int4 xymap[OUT_Y][OUT_X];
+struct float4 bmap[OUT_Y][OUT_X];
+
 
 void defsource(int id, struct source *source){
-
+	FILE *ptr;
+	size_t size;
 	if (source==NULL){
 		cout<<"Error: Unable to allocate source class!"<<endl;
 		return;
@@ -127,6 +132,15 @@ void defsource(int id, struct source *source){
 	rz(1,0) = sin(source->rotate(2));
 	rz(1,1) = cos(source->rotate(2));
 	source->world_matrix = rz * source->world_matrix;
+
+	ptr = fopen("front.rgb", "r");
+	// fseek(ptr, 0, SEEK_END); // seek to end of file
+	// size = ftell(ptr); // get current file pointer
+	// fseek(ptr, 0, SEEK_SET); // seek back to beginning of file
+
+	source->data = (unsigned int *)malloc(source->x*source->y*4);
+	fread(source->data, source->x*source->y, sizeof(unsigned int), ptr);
+	fclose(ptr);	
 }
 
 void defplane(int id, struct plane *plane, struct source **src){
@@ -171,19 +185,43 @@ void defplane(int id, struct plane *plane, struct source **src){
 	}
 }
 
-bool sameside(vec *p1, vec *p2, vec *a, vec *b){
-	vec cp1,cp2;
-	cp1 = cross(*b-*a, *p1-*a);
-	cp2 = cross(*b-*a, *p2-*a);
-	if (dot(cp1, cp2)>=0) return true;
-	else return false;
-}
+unsigned int inter_sum(struct float4 *vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
+	unsigned int temp;
 
-bool pointintriangle(vec *p, vec *a, vec *b, vec *c){
-	if (sameside(p, a, b, c) && sameside(p,b, a,c) && sameside(p,c, a,b)){
-		return true;
-	}else
-		return false;
+	unsigned char r1,g1,b1,a1;
+	unsigned char r2,g2,b2,a2;
+	unsigned char r3,g3,b3,a3;
+	unsigned char r4,g4,b4,a4;
+	float r,g,b,a;
+	r1 = q1>>24;
+	r2 = q2>>24;
+	r3 = q3>>24;
+	r4 = q4>>24;
+
+	g1 = (q1 & 0x00FF0000)>>16;
+	g2 = (q2 & 0x00FF0000)>>16;
+	g3 = (q3 & 0x00FF0000)>>16;
+	g4 = (q4 & 0x00FF0000)>>16;
+
+	b1 = (q1 & 0x0000FF00)>>8;
+	b2 = (q2 & 0x0000FF00)>>8;
+	b3 = (q3 & 0x0000FF00)>>8;
+	b4 = (q4 & 0x0000FF00)>>8;
+
+	r = vec->x*(float)r1 + vec->y*(float)r2 + vec->z*(float)r3 + vec->w*(float)r4;
+	g = vec->x*(float)g1 + vec->y*(float)g2 + vec->z*(float)g3 + vec->w*(float)g4;
+	b = vec->x*(float)b1 + vec->y*(float)b2 + vec->z*(float)b3 + vec->w*(float)b4;
+//	printf("r: %f g: %f b: %f\n",r,g,b );
+
+	//temp = b(0)*q1 + b()
+	temp =0x80;
+	unsigned int rr = (int)r;
+	unsigned int gg = (int)g;
+	unsigned int bb = (int)b;
+
+	temp |= (rr<<24 | (gg<<16) | bb<<8);
+	//printf("%x\n",temp );
+	return temp;
 }
 
 int main(){
@@ -195,6 +233,9 @@ int main(){
 	vec in = vec(4);
 	mat m = mat(4,4);
 	vec crd;
+	vec b= vec(4);
+	mat bicubic = mat(4,4);
+	vec vals = vec(4);
 
 	FILE *ptr;
 	
@@ -221,14 +262,15 @@ int main(){
 			test[i][j] = 0x00000000;
 		}
 	}
-	ptr = fopen("out.raw", "wb+");
+	#if 1
+	ptr = fopen("out2.raw", "wb+");
 
 	for (j=0,phi=-datum::pi/2;phi<datum::pi/2;phi+=((datum::pi)/OUT_Y),j++){
 		for(i=0,theta=0.00000001;theta<2*datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
 			
-			x = 2*cos(phi)*cos(theta);
-			y = 2*sin(phi); 
-			z = 2*cos(phi)*sin(theta);
+			x = cos(phi)*cos(theta);
+			y = sin(phi); 
+			z = cos(phi)*sin(theta);
 
 			if (fp!=-1){
 				//TODO: set only xyz deps
@@ -249,26 +291,54 @@ int main(){
 						printf("error!\n");
 						return -1;
 					}
-					//m =  planes[p]->source->world_matrix * planes[p]->source_matrix;
+					m =  planes[fp]->source_matrix * planes[fp]->source->world_matrix;
 					
 					crd = m * in;
 					
 					if ((i>=0) && (i<OUT_X) && (j>=0) && (j<OUT_Y)){
 						dotarray[j][i].sourceid = p;
-						if ((fp==0) || (fp==1))
-							test[j][i] = 0xFF000080;
-						else if ((fp==2) || (fp==3))
-							test[j][i] = 0x00FF0080;
-						else if ((fp==4) || (fp==5))
-							test[j][i] = 0x0000FF80;
-						else if ((fp==6) || (fp==7))
-							test[j][i] = 0xFFFF0080;
-						else if ((fp==8) || (fp==9))
-							test[j][i] = 0xFF00FF80;
-						else
-							test[j][i] = 0x00FFFF80;
+
+						// int ry = round(crd(1));
+						// int rx = round(crd(0));
+						// test[j][i]=*(planes[fp]->source->data+ry*1200 + rx);
+						int intpart;
+						
 						dotarray[j][i].x = crd(0);
 						dotarray[j][i].y = crd(1);
+						if (floor(crd(0))!=ceil(crd(0)) && floor(crd(1))!=ceil(crd(1))){
+							bicubic << 1 << floor(crd(0)) << floor(crd(1)) << floor(crd(0)) * floor(crd(1)) << endr
+									<< 1 << floor(crd(0)) << ceil(crd(1)) << floor(crd(0)) * ceil(crd(1)) << endr
+									<< 1 << ceil(crd(0)) << floor(crd(1)) << ceil(crd(0)) * floor(crd(1)) << endr
+									<< 1 << ceil(crd(0)) << ceil(crd(1)) << ceil(crd(0)) * ceil(crd(1)) << endr;
+							vals 	<< 1 << endr
+									<< crd(0) << endr
+									<< crd(1) << endr
+									<< crd(0)*crd(1) << endr;
+							
+							b = trans(inv(bicubic)) * vals;// * vals;// * vals;		
+							// b.print();
+							// printf("\n");
+							
+							bmap[j][i].x = b(0);
+							bmap[j][i].y = b(1);
+							bmap[j][i].z = b(2);
+							bmap[j][i].w = b(3);
+						}else{
+							bmap[j][i].x = 1.0f;
+							bmap[j][i].y = 0;
+							bmap[j][i].z = 0;
+							bmap[j][i].w = 0;
+						}
+						
+						xymap[j][i].x = (fp<<16) | (int)floor(crd(0)); //x1
+						xymap[j][i].y = (int)floor(crd(1)); //y1
+						xymap[j][i].z = (int)ceil(crd(0)); //x2
+						xymap[j][i].w = (int)ceil(crd(1)); //y2
+
+						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[fp]->source->data+(int)floor(crd(1))*1200 + (int)floor(crd(0)))
+															, *(planes[fp]->source->data+(int)floor(crd(1))*1200 + (int)ceil(crd(0)))
+															, *(planes[fp]->source->data+(int)ceil(crd(0))*1200 + (int)floor(crd(1)))
+															, *(planes[fp]->source->data+(int)ceil(crd(0))*1200 + (int)ceil(crd(1))));
 					}	
 					continue;
 				}
@@ -292,26 +362,53 @@ int main(){
 						printf("error!\n");
 						return -1;
 					}
-					m =  planes[p]->source->world_matrix * planes[p]->source_matrix;
+					m =  planes[p]->source_matrix * planes[p]->source->world_matrix;
 					
 					crd = m * in;
 					
 					if ((i>=0) && (i<OUT_X) && (j>=0) && (j<OUT_Y)){
+
+						// printf("%d in: %f %f  %f out: %f %f\n", p, in(0),in(1),in(2), crd(0), crd(1));
+				//		test[j][i]=*(planes[p]->source->data + (int(crd(1))*1200) + int(crd(0)));
+
 						dotarray[j][i].sourceid = p;
-						if ((p==0) || (p==1))
-							test[j][i] = 0xFF000080;
-						else if ((p==2) || (p==3))
-							test[j][i] = 0x00FF0080;
-						else if ((p==4) || (p==5))
-							test[j][i] = 0x0000FF80;
-						else if ((p==6) || (p==7))
-							test[j][i] = 0xFFFF0080;
-						else if ((p==8) || (p==9))
-							test[j][i] = 0xFF00FF80;
-						else
-							test[j][i] = 0x00FFFF80;
 						dotarray[j][i].x = crd(0);
 						dotarray[j][i].y = crd(1);
+						if (floor(crd(0))!=ceil(crd(0)) && floor(crd(1))!=ceil(crd(1))){
+							bicubic << 1 << floor(crd(0)) << floor(crd(1)) << floor(crd(0)) * floor(crd(1)) << endr
+									<< 1 << floor(crd(0)) << ceil(crd(1)) << floor(crd(0)) * ceil(crd(1)) << endr
+									<< 1 << ceil(crd(0)) << floor(crd(1)) << ceil(crd(0)) * floor(crd(1)) << endr
+									<< 1 << ceil(crd(0)) << ceil(crd(1)) << ceil(crd(0)) * ceil(crd(1)) << endr;
+							vals 	<< 1 << endr
+									<< crd(0) << endr
+									<< crd(1) << endr
+									<< crd(0)*crd(1) << endr;
+							
+							b = trans(inv(bicubic)) * vals;// * vals;// * vals;		
+							// b.print();
+							// printf("\n");
+							
+							bmap[j][i].x = b(0);
+							bmap[j][i].y = b(1);
+							bmap[j][i].z = b(2);
+							bmap[j][i].w = b(3);
+						}else{
+							bmap[j][i].x = 1.0f;
+							bmap[j][i].y = 0;
+							bmap[j][i].z = 0;
+							bmap[j][i].w = 0;
+						}
+						
+						xymap[j][i].x = (p<<16) | (int)floor(crd(0)); //x1
+						xymap[j][i].y = (int)floor(crd(1)); //y1
+						xymap[j][i].z = (int)ceil(crd(0)); //x2
+						xymap[j][i].w = (int)ceil(crd(1)); //y2
+
+						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[p]->source->data+(int)floor(crd(1))*1200 + (int)floor(crd(0)))
+															, *(planes[p]->source->data+(int)floor(crd(1))*1200 + (int)ceil(crd(0)))
+															, *(planes[p]->source->data+(int)ceil(crd(0))*1200 + (int)floor(crd(1)))
+															, *(planes[p]->source->data+(int)ceil(crd(0))*1200 + (int)ceil(crd(1))));
+
 					}	
 					fp = p;
 					break;
@@ -327,29 +424,29 @@ int main(){
 
 	//LUT is done
 	fwrite(test, OUT_X*OUT_Y,4, ptr);
-	//fflush(ptr);
-	//fclose(ptr);
+	fflush(ptr);
+	fclose(ptr);
 	
 
-
+#endif
 #if 1
 	mat all;
 	all = mat(4,4);
 	all = planes[0]->source_matrix * source[0]->world_matrix;
 	//cout<<"all"<<endl;
-	//all.print();
+	all.print();
 
 	vec in2 = vec(4);
 
-	in2  << 0 << endr 
-		<< 0 << endr
+	in2  << -0.5 << endr 
+		<< -0.5 << endr
 		<< 1 << endr
 		<< 1 << endr;
 
 	vec out = vec(4);
 
 	out = all*in2;
-	//out.print();
+	out.print();
 #endif 
 
 	return 0;
