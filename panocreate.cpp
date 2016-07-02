@@ -74,6 +74,14 @@ struct int4 xymap[OUT_Y][OUT_X];
 struct float4 bmap[OUT_Y][OUT_X];
 
 
+
+inline double to_degrees(double radians) {
+    return radians * (180.0 / arma::datum::pi);
+}
+
+inline double to_radians(double degree) {
+    return radians * ( arma::datum::pi/180.0);
+}
 void defsource(int id, struct source *source){
 	FILE *ptr;
 	size_t size;
@@ -215,9 +223,9 @@ unsigned int inter_sum(struct float4 *vec, unsigned int q1, unsigned int q2, uns
 
 	//temp = b(0)*q1 + b()
 	temp =0x80;
-	unsigned int rr = (int)r;
-	unsigned int gg = (int)g;
-	unsigned int bb = (int)b;
+	unsigned int rr = (unsigned int)r;
+	unsigned int gg = (unsigned int)g;
+	unsigned int bb = (unsigned int)b;
 
 	temp |= (rr<<24 | (gg<<16) | bb<<8);
 	//printf("%x\n",temp );
@@ -266,7 +274,7 @@ int main(){
 	ptr = fopen("out2.raw", "wb+");
 
 	for (j=0,phi=-datum::pi/2;phi<datum::pi/2;phi+=((datum::pi)/OUT_Y),j++){
-		for(i=0,theta=0.00000001;theta<2*datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
+		for(i=0,theta=-datum::pi;theta<datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
 			
 			x = cos(phi)*cos(theta);
 			y = sin(phi); 
@@ -305,7 +313,7 @@ int main(){
 						
 						dotarray[j][i].x = crd(0);
 						dotarray[j][i].y = crd(1);
-						if (floor(crd(0))!=ceil(crd(0)) && floor(crd(1))!=ceil(crd(1))){
+						if ((unsigned int)floor(crd(0))!=(unsigned int)ceil(crd(0)) && (unsigned int)floor(crd(1))!=(unsigned int)ceil(crd(1))){
 							bicubic << 1 << floor(crd(0)) << floor(crd(1)) << floor(crd(0)) * floor(crd(1)) << endr
 									<< 1 << floor(crd(0)) << ceil(crd(1)) << floor(crd(0)) * ceil(crd(1)) << endr
 									<< 1 << ceil(crd(0)) << floor(crd(1)) << ceil(crd(0)) * floor(crd(1)) << endr
@@ -329,17 +337,40 @@ int main(){
 							bmap[j][i].z = 0;
 							bmap[j][i].w = 0;
 						}
-						
-						xymap[j][i].x = (fp<<16) | (int)floor(crd(0)); //x1
-						xymap[j][i].y = (int)floor(crd(1)); //y1
-						xymap[j][i].z = (int)ceil(crd(0)); //x2
-						xymap[j][i].w = (int)ceil(crd(1)); //y2
+						int x1 = (int)floor(crd(0));
+						int y1 = (int)floor(crd(1));
+						int x2 = (int)ceil(crd(0));
+						int y2 = ceil(crd(1));
 
-						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[fp]->source->data+(int)floor(crd(1))*1200 + (int)floor(crd(0)))
-															, *(planes[fp]->source->data+(int)floor(crd(1))*1200 + (int)ceil(crd(0)))
-															, *(planes[fp]->source->data+(int)ceil(crd(0))*1200 + (int)floor(crd(1)))
-															, *(planes[fp]->source->data+(int)ceil(crd(0))*1200 + (int)ceil(crd(1))));
-					}	
+						if (x1<0){
+							printf("Warning x1: %d at j:%d i:%d for plane %d\n",x1,j,i,fp);
+							x1=0;
+						}
+						if (x2<0){
+							printf("Warning x2: %d at j:%d i:%d for plane %d\n",x2,j,i,fp);
+							x2=0;
+						}
+						if (y1<0){
+							printf("Warning y1: %d at j:%d i:%d for plane %d\n",y1,j,i,fp);
+							y1=0;
+						}
+						if (y2<0){
+							printf("Warning y2: %d at j:%d i:%d for plane %d\n",y2,j,i,fp);
+							y2=0;
+						}
+						
+						xymap[j][i].x = (fp<<16) | x1; //x1
+						xymap[j][i].y = x2; //y1
+						xymap[j][i].z = y1; //x2
+						xymap[j][i].w = y2; //y2
+
+						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)floor(crd(0)))
+															, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)ceil(crd(0)))
+															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)floor(crd(1)))
+															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)ceil(crd(1))));
+					}else{
+						//printf("warning x: %d y: %d\n", i,j);
+					}
 					continue;
 				}
 			}
@@ -374,7 +405,7 @@ int main(){
 						dotarray[j][i].sourceid = p;
 						dotarray[j][i].x = crd(0);
 						dotarray[j][i].y = crd(1);
-						if (floor(crd(0))!=ceil(crd(0)) && floor(crd(1))!=ceil(crd(1))){
+						if ((unsigned int)floor(crd(0))!=(unsigned int)ceil(crd(0)) && (unsigned int)floor(crd(1))!=(unsigned int)ceil(crd(1))){
 							bicubic << 1 << floor(crd(0)) << floor(crd(1)) << floor(crd(0)) * floor(crd(1)) << endr
 									<< 1 << floor(crd(0)) << ceil(crd(1)) << floor(crd(0)) * ceil(crd(1)) << endr
 									<< 1 << ceil(crd(0)) << floor(crd(1)) << ceil(crd(0)) * floor(crd(1)) << endr
@@ -398,16 +429,36 @@ int main(){
 							bmap[j][i].z = 0;
 							bmap[j][i].w = 0;
 						}
-						
-						xymap[j][i].x = (p<<16) | (int)floor(crd(0)); //x1
-						xymap[j][i].y = (int)floor(crd(1)); //y1
-						xymap[j][i].z = (int)ceil(crd(0)); //x2
-						xymap[j][i].w = (int)ceil(crd(1)); //y2
+						int x1 = (int)floor(crd(0));
+						int y1 = (int)floor(crd(1));
+						int x2 = (int)ceil(crd(0));
+						int y2 = ceil(crd(1));
+						if (x1<0){
+							printf("Warning x1: %d at j:%d i:%d for plane %d\n",x1,j,i,p);
+							x1=0;
+						}
+						if (x2<0){
+							printf("Warning x2: %d at j:%d i:%d for plane %d\n",x2,j,i,p);
+							x2=0;
+						}
+						if (y1<0){
+							printf("Warning y1: %d at j:%d i:%d for plane %d\n",y1,j,i,p);
+							y1=0;
+						}
+						if (y2<0){
+							printf("Warning y2: %d at j:%d i:%d for plane %d\n",y2,j,i,p);
+							y2=0;
+						}
 
-						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[p]->source->data+(int)floor(crd(1))*1200 + (int)floor(crd(0)))
-															, *(planes[p]->source->data+(int)floor(crd(1))*1200 + (int)ceil(crd(0)))
-															, *(planes[p]->source->data+(int)ceil(crd(0))*1200 + (int)floor(crd(1)))
-															, *(planes[p]->source->data+(int)ceil(crd(0))*1200 + (int)ceil(crd(1))));
+						xymap[j][i].x = (p<<16) | x1; //x1
+						xymap[j][i].y = y1; //y1
+						xymap[j][i].z = x2; //x2
+						xymap[j][i].w = y2; //y2
+
+						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)floor(crd(0)))
+															, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)ceil(crd(0)))
+															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)floor(crd(1)))
+															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)ceil(crd(1))));
 
 					}	
 					fp = p;
@@ -421,12 +472,34 @@ int main(){
 			printf("%d%%...\n", j/24);
 		}
 	}
-
 	//LUT is done
 	fwrite(test, OUT_X*OUT_Y,4, ptr);
 	fflush(ptr);
 	fclose(ptr);
+
+	FILE *xyp, *bmapp;
+	xyp = fopen("xymap.bin","wb+");
+	bmapp = fopen("bmap.bin", "wb+");
+	fwrite(xymap, OUT_Y*OUT_X, sizeof(struct int4), xyp);
+	fwrite(bmap, OUT_Y*OUT_X, sizeof(struct float4), bmapp);
+	fflush(xyp);
+	fflush(bmapp);
+	fclose(xyp);
+	fclose(bmapp);
 	
+	//for y
+	//x1 = -datum::pi/2
+	//x2 = datum::pi/2
+	//y1 = 0
+	//y2 = OUT_Y
+
+
+	//for x
+	//x1 = -datum::pi
+	//x2 = datum::pi
+	//y1 = 0
+	//y2 = OUT_X
+
 
 #endif
 #if 1

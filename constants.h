@@ -39,7 +39,7 @@
 #define 	SOURCE_2_DEVNAME	"back.rgb"
 #define		SOURCE_2_X			1200
 #define 	SOURCE_2_Y 			1200
-#define		SOURCE_2_TRANSP_X	-0.5
+#define		SOURCE_2_TRANSP_X	0.5
 #define		SOURCE_2_TRANSP_Y	-0.5
 #define 	SOURCE_2_TRANSP_Z	0.5
 #define 	SOURCE_2_ROTATE_X	arma::datum::pi
