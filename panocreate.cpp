@@ -93,6 +93,8 @@ void defsource(int id, struct source *source){
 
 	source->id = source_ids[id];
 	source->name = new char[10];
+	source->devname = new char[18];
+	strcpy(source->devname, source_devnames[id]);
 	strcpy(source->name, source_names[id]);
 
 	source->x = source_x[id];
@@ -141,7 +143,7 @@ void defsource(int id, struct source *source){
 	rz(1,1) = cos(source->rotate(2));
 	source->world_matrix = rz * source->world_matrix;
 
-	ptr = fopen("front.rgb", "r");
+	ptr = fopen(source->devname, "r");
 	// fseek(ptr, 0, SEEK_END); // seek to end of file
 	// size = ftell(ptr); // get current file pointer
 	// fseek(ptr, 0, SEEK_SET); // seek back to beginning of file
@@ -273,8 +275,8 @@ int main(){
 	#if 1
 	ptr = fopen("out3.raw", "wb+");
 
-	for (j=0,phi=-datum::pi/2;phi<datum::pi/2;phi+=((datum::pi)/OUT_Y),j++){
-		for(i=0,theta=-datum::pi;theta<datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
+	for (j=0,phi=datum::pi/2;phi>-datum::pi/2;phi-=((datum::pi)/OUT_Y),j++){
+		for(i=0,theta=0.0000001;theta<2*datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
 			
 			x = cos(phi)*cos(theta);
 			y = sin(phi); 
@@ -550,17 +552,28 @@ int main(){
 	fclose(bmapp);
 	
 	//for y
-	//x1 = -datum::pi/2
-	//x2 = datum::pi/2
+	//x1 = 0
+	//x2 = pi
 	//y1 = 0
 	//y2 = OUT_Y-1
 
 
 	//for x
-	//x1 = -datum::pi
-	//x2 = datum::pi
+	//x1 = 0
+	//x2 = 2pi
 	//y1 = 0
 	//y2 = OUT_X-1
+
+
+#if 0
+
+
+	y 				OUTX-1
+------------ = ---------
+	x 				2pi
+
+
+#endif 
 
 
 #endif
