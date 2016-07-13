@@ -80,7 +80,7 @@ inline double to_degrees(double radians) {
 }
 
 inline double to_radians(double degree) {
-    return radians * ( arma::datum::pi/180.0);
+    return degree * ( arma::datum::pi/180.0);
 }
 void defsource(int id, struct source *source){
 	FILE *ptr;
@@ -271,7 +271,7 @@ int main(){
 		}
 	}
 	#if 1
-	ptr = fopen("out2.raw", "wb+");
+	ptr = fopen("out3.raw", "wb+");
 
 	for (j=0,phi=-datum::pi/2;phi<datum::pi/2;phi+=((datum::pi)/OUT_Y),j++){
 		for(i=0,theta=-datum::pi;theta<datum::pi;theta+=((2*datum::pi)/OUT_X),i++){
@@ -368,6 +368,37 @@ int main(){
 															, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)ceil(crd(0)))
 															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)floor(crd(1)))
 															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)ceil(crd(1))));
+					
+					// switch(p){
+					// 		case 0:
+					// 		case 1:
+					// 		test[j][i] = 0xFF000080;
+					// 		break;
+					// 		case 2:
+					// 		case 3:
+					// 		test[j][i] = 0x00FF0080;
+					// 		break;
+					// 		case 4:
+					// 		case 5:
+					// 		test[j][i] = 0x0000FF80;
+					// 		break;
+					// 		case 6:
+					// 		case 7:
+					// 		test[j][i] = 0xFFFF0080;
+					// 		break;
+					// 		case 8:
+					// 		case 9:
+					// 		test[j][i] = 0x00FFFF80;
+					// 		break;
+					// 		case 10:
+					// 		case 11:
+					// 		test[j][i] = 0xFF00FF80;
+					// 		break;
+							
+							
+							
+							
+					// 	}
 					}else{
 						//printf("warning x: %d y: %d\n", i,j);
 					}
@@ -460,6 +491,37 @@ int main(){
 															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)floor(crd(1)))
 															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)ceil(crd(1))));
 
+						// switch(p){
+						// 	case 0:
+						// 	case 1:
+						// 	test[j][i] = 0xFF000080;
+						// 	break;
+						// 	case 2:
+						// 	case 3:
+						// 	test[j][i] = 0x00FF0080;
+						// 	break;
+						// 	case 4:
+						// 	case 5:
+						// 	test[j][i] = 0x0000FF80;
+						// 	break;
+						// 	case 6:
+						// 	case 7:
+						// 	test[j][i] = 0xFFFF0080;
+						// 	break;
+						// 	case 8:
+						// 	case 9:
+						// 	test[j][i] = 0x00FFFF80;
+						// 	break;
+						// 	case 10:
+						// 	case 11:
+						// 	test[j][i] = 0xFF00FF80;
+						// 	break;
+							
+							
+							
+							
+						// }
+
 					}	
 					fp = p;
 					break;
@@ -468,8 +530,8 @@ int main(){
 			
 		}
 		
-		if (!(j%24)){
-			printf("%d%%...\n", j/24);
+		if (!(j%18)){
+			printf("%d%%...\n", j/18);
 		}
 	}
 	//LUT is done
@@ -491,14 +553,14 @@ int main(){
 	//x1 = -datum::pi/2
 	//x2 = datum::pi/2
 	//y1 = 0
-	//y2 = OUT_Y
+	//y2 = OUT_Y-1
 
 
 	//for x
 	//x1 = -datum::pi
 	//x2 = datum::pi
 	//y1 = 0
-	//y2 = OUT_X
+	//y2 = OUT_X-1
 
 
 #endif

@@ -5,7 +5,7 @@
 #include 	<armadillo>
 
 #define 	OUT_X				3600
-#define 	OUT_Y				2400
+#define 	OUT_Y				1800
 
 
 #define 	SOURCE_COUNT		6

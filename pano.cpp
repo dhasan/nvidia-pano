@@ -1,22 +1,22 @@
 
-#include 	<iostream>
+//#include 	<iostream>
 #include 	<armadillo>
 #include <fcntl.h>
 
-#define 	OUT_X				3600
-#define 	OUT_Y				1800
+#define 	OUT_X				(3600)
+#define 	OUT_Y				(1800)
 
-#define DEST_X 	640
-#define DEST_Y	640
+#define DEST_X 	(640)
+#define DEST_Y	(640)
 
-#define ANGLE_PHI	(90)
-#define ANGLE_THETA	(45)
+#define ANGLE_PHI	(-90)
+#define ANGLE_THETA	(0)
 
 #define FOV_X		(90)
 #define FOV_Y		(90)
 
-//#define RADIUS		(1)
-#define RADIUS		(OUT_X/(2*datum::pi))
+#define RADIUS		(1)
+//#define RADIUS		(OUT_X/(2*datum::pi))
 
 
 #define MAX(a,b) (a>b)?a:b
@@ -81,9 +81,18 @@ void sphere_to_cart(float3 *sph, float3 *cart){
 }
 
 void cart_to_sphere(float3 *cart, float3 *sph){
-
+	float theta;
 	float r = sqrt((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
-	float theta = atan(cart->z/cart->x);
+	if (cart->x==0){
+		if (cart->z<0)
+			theta = -1*datum::pi;
+		else
+			theta = datum::pi;
+	}else
+		theta = atan(cart->z/cart->x);
+
+
+
 	float phi = acos(cart->y/r);
 
 	sph->x = theta;
@@ -121,6 +130,20 @@ struct dest {
 };
 
 
+#define FIX(n)					\
+if (phi_##n<0){					\
+		phi_##n*=-1;			\
+		theta_##n+=datum::pi;	\
+								\
+	}else if (phi_##n>datum::pi){	\
+		phi_##n = datum::pi - (phi_##n - datum::pi);	\
+		theta_##n+=datum::pi;							\
+	}													\
+	if (theta_##n>(2*datum::pi))						\
+			theta_##n -= 2*datum::pi; 					\
+	else if (theta_##n<0)								\
+		theta_##n = 2*datum::pi - theta_##n;			
+
 
 unsigned int pano[OUT_Y][OUT_X];
 unsigned int plane[DEST_Y][DEST_X];
@@ -136,24 +159,50 @@ int main(){
 	float3 cart_1,cart_2,cart_3,cart_4;
 	float3 sph_t;
 
-	float phi_c = deg_to_rad(ANGLE_PHI);
+	float phi_c = deg_to_rad(ANGLE_PHI -90);
 	float theta_c = deg_to_rad(ANGLE_THETA);
 
-	//point 1
-	float phi_1 = deg_to_rad((float)ANGLE_PHI + (float)(FOV_Y/2));
-	float theta_1 = deg_to_rad((float)ANGLE_THETA + (float)(FOV_X/2));
+	float fov = (float)deg_to_rad(FOV_X/2.0);
 
-	//point 2
-	float phi_2 = deg_to_rad((float)ANGLE_PHI + (float)(FOV_Y/2));
-	float theta_2 = deg_to_rad((float)ANGLE_THETA - (float)(FOV_X/2));
+	// //point 1
+	// float phi_1 = deg_to_rad((float)ANGLE_PHI - (float)(FOV_Y/2));
+	// float theta_1 = deg_to_rad((float)ANGLE_THETA + (float)(FOV_X/2));
+	float phi_1 =		phi_c 	- 	fov;
+	float theta_1 = 	theta_c	+	fov;
+//	FIX(1);
 
-	//point 3
-	float phi_3 = deg_to_rad((float)ANGLE_PHI - (float)(FOV_Y/2));
-	float theta_3 = deg_to_rad((float)ANGLE_THETA - (float)(FOV_X/2));	
+	// if (phi_1<0){
+	// 	phi_1*=-1;
+	// 	theta_1+=datum::pi;
+		
+	// }else if (phi_1>datum::pi){
+	// 	phi_1 = datum::pi - (phi_1 - datum::pi);
+	// 	theta_1+=datum::pi;
+	// }
 
-	//point 4
-	float phi_4 = deg_to_rad((float)ANGLE_PHI - (float)(FOV_Y/2));
-	float theta_4 = deg_to_rad((float)ANGLE_THETA + (float)(FOV_X/2));	
+	// if (theta_1>(2*datum::pi))
+	// 		theta_1 -= 2*datum::pi; 
+	// else if (theta_1<0)
+	// 	theta_1 = 2*datum::pi - theta_1;
+	// //point 2
+	// float phi_2 = deg_to_rad((float)ANGLE_PHI - (float)(FOV_Y/2));
+	// float theta_2 = deg_to_rad((float)ANGLE_THETA - (float)(FOV_X/2));
+	float phi_2 = phi_c - fov;
+	float theta_2 = theta_c - fov;
+//FIX(2);
+	// //point 3
+	// float phi_3 = deg_to_rad((float)ANGLE_PHI + (float)(FOV_Y/2));
+	// float theta_3 = deg_to_rad((float)ANGLE_THETA - (float)(FOV_X/2));	
+	float phi_3 = phi_c + fov;
+	float theta_3 = theta_c - fov;
+//	FIX(3);
+	// //point 4
+	// float phi_4 = deg_to_rad((float)ANGLE_PHI + (float)(FOV_Y/2));
+	// float theta_4 = deg_to_rad((float)ANGLE_THETA + (float)(FOV_X/2));	
+	float phi_4 = phi_c + fov;
+	float theta_4 = theta_c + fov;
+//	FIX(4);
+
 
 	sph_t.x = theta_1;
 	sph_t.y = phi_1;
@@ -174,6 +223,15 @@ int main(){
 	sph_t.y = phi_4;
 	sph_t.z = RADIUS;//OUT_X/(2*datum::pi);
 	sphere_to_cart(&sph_t, &cart_4);
+
+
+
+	// cart_1.z = 0.5;
+	// cart_2.z = -0.5;
+	// cart_3.z = 0.5;
+	// cart_4.z = 0.5;
+
+
 
 	cart_c.x = (cart_1.x + cart_3.x)/2;
 	cart_c.y = (cart_1.y + cart_3.y)/2;
@@ -197,6 +255,14 @@ int main(){
 	
 
 	vec normv = cross(p1vec_x, p1vec_y);
+	float3 cartnorm,spnorm;
+	cartnorm.x = normv(0);
+	cartnorm.y = normv(1);
+	cartnorm.z = normv(2);
+
+	cart_to_sphere(&cartnorm, &spnorm);
+	printf("nnnnnnnnnnnnnnnorm theta: %f phi %f\n", rad_to_deg(spnorm.x), rad_to_deg(spnorm.y) );
+
 	vec x_vec,y_vec,z_vec;
 
 	x_vec 	<< 1 << endr	
@@ -234,31 +300,30 @@ int main(){
 	// dest->world_matrix = ry * dest->world_matrix;
 
 	
-	
 
 
-	float sx = distance(&cart_1, &cart_2);
-	float sy = distance(&cart_1, &cart_4);
-	printf("sx: %f sy: %f\n", (sx), (sy) );
-	mat scale = mat(4,4);
-	scale.eye();
-	scale(0,0) = sx/DEST_X;
-	scale(1,1) = sy/DEST_Y;
-	//scale(2,2) = sy/DEST_Y;
-	dest->world_matrix = scale * dest->world_matrix;
-
-
+		float sx = distance(&cart_1, &cart_2);
+		float sy = distance(&cart_1, &cart_4);
+		printf("sx: %f sy: %f\n", sx/DEST_X, sy/DEST_Y );
+		mat scale = mat(4,4);
+		scale.eye();
+		scale(0,0) = (1*sx)/DEST_X;
+		scale(1,1) = (1*sx)/DEST_Y;
+		scale(2,2) = 1;
+		dest->world_matrix = scale * dest->world_matrix;
 
 	 
-	
 
-	float ang_x = deg_to_rad(ANGLE_PHI);// -1*acos(norm_dot(normv, x_vec));
+	float ang_x = deg_to_rad(ANGLE_PHI);// -1*acos(norm_dot(p1vec_y, y_vec));
 	float ang_y = deg_to_rad(ANGLE_THETA-90);// -1*acos(norm_dot(normv, y_vec));
 	float ang_z = 0;//datum::pi/4;//acos(norm_dot(normv, z_vec));
 	printf("ang_x %f ang_y %f ang_z %f\n",ang_x, ang_y, ang_z );
 	// ang_x*=-1;
 	// ang_y*=-1;
 	// ang_z*=-1;
+
+
+
 
 
 	mat ry = mat(4,4);
@@ -282,6 +347,10 @@ int main(){
 	dest->world_matrix = rx * dest->world_matrix;
 
 
+	
+
+
+
 	dest->transp = mat(4,4);
 	dest->transp.eye();
 	dest->transp(0,3) = 1*cart_c.x;
@@ -296,6 +365,11 @@ int main(){
 	// rz(1,0) = sin(datum::pi/2);
 	// rz(1,1) = cos(datum::pi/2);
 	// dest->world_matrix = rz * dest->world_matrix;
+
+
+
+	
+
 
 
 dest->world_matrix.print();
@@ -633,7 +707,7 @@ dest->world_matrix.print();
 		x=start_x;
 	}while(y>miny && y<maxy	);
 	#endif
-	vec ou,inv,inv1,inv2;
+	vec ou,inv1,inv2,inv3,inv4;
 
 	float ax = deg_to_rad(ANGLE_THETA+90);
 	float bx = deg_to_rad(ANGLE_PHI);
@@ -657,34 +731,226 @@ dest->world_matrix.print();
 
 	mat tsp = mat(4,4);
 
+	inv1 << -DEST_X << endr
+		 << DEST_Y << endr
+		 << 1 << endr
+		 << 1 << endr;
+	inv2 << DEST_X << endr
+		 << DEST_Y << endr
+		 << 1 << endr
+		 << 1 << endr;
+	inv3 << DEST_X << endr
+		 << -DEST_Y << endr
+		 << 1 << endr
+		 << 1 << endr;
+	inv4 << -DEST_X << endr
+		 << -DEST_Y << endr
+		 << 1 << endr
+		 << 1 << endr;
+
+	ou = dest->world_matrix * inv1;
+	printf("p1\n");
+	ou.print();
+	ou = dest->world_matrix * inv2;
+	printf("p2\n");
+	ou.print();
+	ou = dest->world_matrix * inv3;
+	printf("p3\n");
+	ou.print();
+	ou = dest->world_matrix * inv4;
+	printf("p4\n");
+	ou.print();
+
+
 	inv1 << 0 << endr
 		 << 0 << endr
 		 << 0 << endr
 		 << 1 << endr;
 	ou = dest->world_matrix * inv1;
+	printf("center\n");
+	ou.print();
 
-	ou.print();		 
 
-#if 0
-	for (jj=-DEST_Y/2;jj<DEST_Y/2;jj++){
-		for(ii=-DEST_X/2;ii<DEST_X/2;ii++){
+	vec ti;
+	ti << -320 
+		<<	320 
+		<<	1 <<endr;
+	vec to;
+	to << 0.433013  
+		<<	0.500000  
+		<<	0.750000 << endr;
+
+	mat inv5 = solve(ti,to);
+	printf("----\n");
+	inv5.print();
+	printf("----\n");
+	printf("world\n");
+	dest->world_matrix.print();
+
+
+
+
+	vec out1;
+	out1 << cart_1.x << endr
+		 << cart_1.y << endr
+		 << cart_1.z << endr
+		 << 1 << endr;
+	
+	vec out2;
+	out2 << cart_2.x << endr
+		 << cart_2.y << endr
+		 << cart_2.z << endr
+		 << 1 << endr;
+	
+	vec out3;
+	out3 << cart_3.x << endr
+		 << cart_3.y << endr
+		 << cart_3.z << endr
+		 << 1 << endr;
+	
+	vec out4;
+	out4 << cart_4.x << endr
+		 << cart_4.y << endr
+		 << cart_4.z << endr
+		 << 1 << endr;
+
+	vec in1 = vec(4);
+	in1  << 0 << endr
+		 << 0 << endr
+		 << 1 << endr
+		 << 1 << endr;
+
+	vec in2 =vec(4);
+	in2  << DEST_X << endr
+		 << 0 << endr
+		 << 1 << endr
+		 << 1 << endr;
+		
+	vec in3=vec(4);
+	in3  << DEST_X << endr
+		 << DEST_Y << endr
+		 << 1 << endr
+		 << 1 << endr;
+
+	vec in4=vec(4);
+	in4  << 0<< endr
+		 << DEST_Y << endr
+		 << 1 << endr
+		 << 1 << endr;
+    
+    mat pa = mat(4,4);
+   
+    pa 	<< in1(0) << in1(1) << in1(2) << /*in1(3) << */endr
+    	<< in2(0) << in2(1) << in2(2) << /*in2(3) <<*/ endr
+    	<< in3(0) << in3(1) << in3(2) << /*in3(3) <<*/ endr;
+    //	<< in4(0) << in4(1) << in4(2) << in4(3) << endr;
+
+    vec p1;
+    p1  << out1(0) << endr
+    	<< out2(0) << endr
+    	<< out3(0) << endr;
+    	//<< out4(0) << endr;
+
+    vec l1;//=vec(4);
+    printf("pa:\n");
+    pa.print();
+  
+
+
+    l1 =inv(pa) * p1;
+
+    mat wm = mat(3,3);
+    wm(0,0) = l1(0);
+    wm(0,1) = l1(1);
+    wm(0,2) = l1(2);
+    //wm(0,4) = l1(3);
+
+    ///////////////
+
+     p1  << out1(1) << endr
+    	<< out2(1) << endr
+    	<< out3(1) << endr;
+    //	<< out4(1) << endr;
+
+    l1 = inv(pa) * p1;
+
+    //wm = mat(4,4);
+    wm(1,0) = l1(0);
+    wm(1,1) = l1(1);
+    wm(1,2) = l1(2);
+    //wm(1,4) = l1(3);
+
+    //////////////////
+
+     ///////////////
+
+     p1  << out1(2) << endr
+    	<< out2(2) << endr
+    	<< out3(2) << endr;
+    //	<< out4(2) << endr;
+
+    l1 = inv(pa)*p1;
+
+    //wm = mat(4,4);
+    wm(2,0) = l1(0);
+    wm(2,1) = l1(1);
+    wm(2,2) = l1(2);
+    //wm(2,4) = l1(3);
+
+    //  ///////////////
+
+    //  p1  << out1(3) << endr
+    // 	<< out2(3) << endr
+    // 	<< out3(3) << endr;
+    // 	//<< out4(3) << endr;
+
+    // l1 = inv(pa) * p1;
+
+    // //wm = mat(4,4);
+    // wm(3,0) = l1(0);
+    // wm(3,1) = l1(1);
+    // wm(3,2) = l1(2);
+    // wm(3,3) = l1(3);
+
+    mat fa = mat(3,3);
+    mat fb = mat(3,3);
+    float fan = deg_to_rad(45);
+    float fbn = deg_to_rad(-45);
+    fa 	<< cos(fan) << 0 << -sin(fan) << endr
+    	<< 0 << 1 << 0 << endr
+    	<< sin(fan) << 0 << cos(fan) << endr;
+
+    fb << cos(fbn) << -sin(fbn) << 0 <<endr
+    	<< sin(fbn) << cos(fbn) << 0 <<endr
+    	<< 0 << 0 << 1 <<endr;
+
+ 	
+ 	wm = fb * wm;
+wm =  fa * wm;
+    wm.print();
+#if 1
+	for (jj=0;jj<DEST_Y;jj++){
+		for(ii=0;ii<DEST_X;ii++){
 
 
 
 
 			inv1 << ii << endr
 				<< jj << endr
-				<<0 << endr
-				<< 1 << endr;
+				<<1 << endr;
+		// 	//	<< 1 << endr;
 
-			 inv2 = axmat * inv1; 
-			// inv = bxmat * inv2;
-			if ((jj==(-DEST_Y/2)) && (ii==-(DEST_X/2)))
-			inv.print();
+		// 	// inv2 = axmat * inv1; 
+		// 	// inv = bxmat * inv2;
+		// 	if ((jj==(-DEST_Y/2)) && (ii==-(DEST_X/2)))
+		// //	inv.print();
 			
-			ou = dest->world_matrix * inv2;
+		// 	ou = dest->world_matrix * inv1;
 
-			//////////
+		// 	//////////
+
+			ou = wm * inv1;
+			//ou.print();
 
 			cr.x = ou(0);
 			cr.y = ou(1);
@@ -693,13 +959,16 @@ dest->world_matrix.print();
 
 			//////////
 			j = (int)phi_to_j(sp.y-datum::pi/2);
+			// sp.x-=datum::pi;
+			// if (sp.x<-datum::pi)
+			// 	sp.x+=datum::pi;
 			i = (int)theta_to_i(sp.x);
 			if (i>OUT_X || i<0)
 				printf("warn: i %d",i);
 			if (j>OUT_Y || j<0)
 				printf("warn: j %d",j);
-			//printf("jj: %d ii: %d j: %d i:: %d\n",jj,ii,j,i );
-			plane[jj+DEST_Y/2][ii+DEST_X/2] = pano[j][i];
+		//	printf("jj: %d ii: %d j: %d i:: %d sp.x %f\n",jj,ii,j,i,sp.x );
+			plane[jj][ii] = pano[j][i];
 
 		}
 	}

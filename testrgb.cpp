@@ -11,7 +11,7 @@ int main(){
 	ptr = fopen("front.rgb","wb+");
 	for (y=0;y<1200;y++){
 		for(x=0;x<1200;x++){
-			if (((x%120)<8) || ((y%120)<8)){
+			if (((x%120)<5) || ((y%120)<5)){
 				data[y][x] = 0x00000080;
 			}else{
 				data[y][x] = 0xFFFFFF80;
