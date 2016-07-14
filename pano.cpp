@@ -8,14 +8,14 @@
 #define DEST_X 	(640)
 #define DEST_Y	(640)
 
-#define ANGLE_PHI	(-90)
+#define ANGLE_PHI	(-180)
 #define ANGLE_THETA	(0)
 
 #define FOV_X		(90)
 #define FOV_Y		(90)
 
-#define RADIUS		(1)
-//#define RADIUS		(OUT_X/(2*datum::pi))
+//#define RADIUS		(1)
+#define RADIUS		(OUT_X/(2*datum::pi))
 
 
 #define MAX(a,b) (a>b)?a:b
@@ -49,12 +49,12 @@ struct float3 {
 float phi_to_j(float phi){
 	//float j = (float)((((OUT_Y-1)*phi) + (((OUT_Y-1)*datum::pi)/2))/datum::pi);
 	float pi2 = datum::pi/2;
-	float j = (float)(((OUT_Y-1)*phi  +  (OUT_Y-1)*pi2)/datum::pi);
+	float j = (float)(((OUT_Y-1)*phi  +  (OUT_Y-1)*0)/datum::pi);
 	return j;
 }
 
 float theta_to_i(float theta){
-	float i = (float)(((((OUT_X-1)*theta)) + ((OUT_X-1)*datum::pi))/(2*datum::pi));
+	float i = (float)(((((OUT_X-1)*theta)) + ((OUT_X-1)*0))/(2*datum::pi));
 	return i;
 }
 
@@ -81,6 +81,7 @@ void sphere_to_cart(float3 *sph, float3 *cart){
 
 void cart_to_sphere(float3 *cart, float3 *sph){
 	float theta;
+	float phi;
 	float r = sqrt((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
 	if (cart->x==0){
 		if (cart->z<0)
@@ -91,9 +92,11 @@ void cart_to_sphere(float3 *cart, float3 *sph){
 		theta = atan(cart->z/cart->x);
 
 
-
-	float phi = acos(cart->y/r);
-
+	//float phi = atan(r/cart->y);
+	if (cart->x>0)
+		phi = acos(cart->y/r);
+	else 
+		phi = acos(cart->y/r)*-1;
 	sph->x = theta;
 	sph->y = phi;
 	sph->z = r;
@@ -143,7 +146,7 @@ void create_out_plane(mat& coord, float fov){
 	float3 cart_1,cart_2,cart_3,cart_4;
 	float3 sph_t;
 
-	float phi_c = deg_to_rad(ANGLE_PHI -90);
+	float phi_c = deg_to_rad(ANGLE_PHI);
 	float theta_c = deg_to_rad(ANGLE_THETA);
 
 	float fov2 = fov/2.0;
@@ -290,23 +293,25 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(135), deg_to_rad(45), rmatrix);
+	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
 	wm =  rmatrix * pmatrix;
 
     wm.print();
    
 
-	FILE *panofd = fopen("out3.raw","rb");
+	FILE *panofd = fopen("e1s.rgba","rb");
 	if (panofd==NULL){
 		printf("can't open pano file\n");
-		//exit(1);
+		exit(1);
 	}
 	FILE *planefd = fopen("plane.rgb", "wb+");
 	if (planefd==NULL){
 		printf("cant create output file\n");
+		exit(1);
 	}
 
 	fread(pano, 4, OUT_X*OUT_Y,panofd);
+	 
 
 	for (jj=0;jj<DEST_Y;jj++){
 		for(ii=0;ii<DEST_X;ii++){
@@ -316,23 +321,26 @@ int main(){
 					<< 1 << endr;
 
 			outvec = wm * invec;
-			//ou.print();
+
 
 			cr.x = outvec(0);
 			cr.y = outvec(1);
 			cr.z = outvec(2);
 			cart_to_sphere(&cr, &sp);
 
-			//////////
-			j = (int)phi_to_j(sp.y-datum::pi/2);
-		
+			if ((sp.y<0) || (sp.y>datum::pi)){
+				sp.y*=-1;
+				if (sp.x<datum::pi){
+					sp.x+=datum::pi;
+				}else
+					sp.x-=datum::pi;
+				
+			}
+
+			j = (int)phi_to_j(sp.y);
 			i = (int)theta_to_i(sp.x);
-			if (i>OUT_X || i<0)
-				printf("warn: i %d",i);
-			if (j>OUT_Y || j<0)
-				printf("warn: j %d",j);
-		//	printf("jj: %d ii: %d j: %d i:: %d sp.x %f\n",jj,ii,j,i,sp.x );
-			plane[jj][ii] = pano[j][i];
+			
+			plane[jj][DEST_X - ii-1] = pano[j][i];
 
 		}
 	}
