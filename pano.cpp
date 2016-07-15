@@ -8,7 +8,7 @@
 #define DEST_X 	(640)
 #define DEST_Y	(640)
 
-#define ANGLE_PHI	(-180)
+#define ANGLE_PHI	(0)
 #define ANGLE_THETA	(0)
 
 #define FOV_X		(90)
@@ -70,9 +70,13 @@ float rad_to_deg(float rad){
 
 
 void sphere_to_cart(float3 *sph, float3 *cart){
-	float x = sph->z*cos(sph->y)*cos(sph->x);
-	float y = sph->z*sin(sph->y); 
-	float z = sph->z*cos(sph->y)*sin(sph->x);
+	// float x = sph->z*cos(sph->y)*cos(sph->x);
+	// float y = sph->z*sin(sph->y); 
+	// float z = sph->z*cos(sph->y)*sin(sph->x);
+
+	float x = sph->z*cos(sph->x)*sin(sph->y);
+	float y = sph->z*sin(sph->x)*sin(sph->y);
+	float z = sph->z*cos(sph->y);
 
 	cart->x = x;
 	cart->y = y;
@@ -83,20 +87,35 @@ void cart_to_sphere(float3 *cart, float3 *sph){
 	float theta;
 	float phi;
 	float r = sqrt((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
-	if (cart->x==0){
-		if (cart->z<0)
-			theta = -1*datum::pi;
+	// if (cart->x==0){
+	// 	if (cart->z<0)
+	// 		theta = -1*datum::pi;
+	// 	else
+	// 		theta = datum::pi;
+	// }else
+	// 	theta = atan(cart->z/cart->x);
+
+
+	// //float phi = atan(r/cart->y);
+	// if (cart->x>0)
+	// 	phi = acos(cart->y/r);
+	// else 
+	// 	phi = acos(cart->y/r)*-1;
+
+	if (cart->x==0) 
+		if (cart->y < 0)
+			theta = -datum::pi/2;
 		else
-			theta = datum::pi;
-	}else
-		theta = atan(cart->z/cart->x);
+			theta = datum::pi/2;
+	else
+		theta = atan(cart->y/cart->x);
+
+	phi = acos(cart->z/r);
+
+	if (cart->x<0)
+		phi*=-1;
 
 
-	//float phi = atan(r/cart->y);
-	if (cart->x>0)
-		phi = acos(cart->y/r);
-	else 
-		phi = acos(cart->y/r)*-1;
 	sph->x = theta;
 	sph->y = phi;
 	sph->z = r;
@@ -166,23 +185,78 @@ void create_out_plane(mat& coord, float fov){
 	sph_t.x = theta_1;
 	sph_t.y = phi_1;
 	sph_t.z = RADIUS;//OUT_X/(2*datum::pi);
+	if (phi_1<0){
+		phi_1 *= -1;
+		if (theta_1<datum::pi)
+			theta_1 +=datum::pi;
+		else
+			theta_1 -=datum::pi;
+	}
+
+	if (theta_1<0){
+		theta_1 = 2*datum::pi + theta_1;
+	}
+
 	sphere_to_cart(&sph_t, &cart_1);
+	printf("theta1: %f phi1 %f\n",rad_to_deg(theta_1), rad_to_deg(phi_1) );
 
 	sph_t.x = theta_2;
 	sph_t.y = phi_2;
 	sph_t.z = RADIUS;//OUT_X/(2*datum::pi);
+	if (phi_2<0){
+		phi_2 *= -1;
+		if (theta_2<datum::pi)
+			theta_2 +=datum::pi;
+		else
+			theta_2 -=datum::pi;
+	}
+
+	if (theta_2<0){
+		theta_2 = 2*datum::pi + theta_2;
+	}
+
+
 	sphere_to_cart(&sph_t, &cart_2);
+	printf("theta2: %f phi2 %f\n",rad_to_deg(theta_2), rad_to_deg(phi_2));
 
 	sph_t.x = theta_3;
 	sph_t.y = phi_3;
 	sph_t.z = RADIUS;//OUT_X/(2*datum::pi);
+
+	if (phi_3<0){
+		phi_3 *= -1;
+		if (theta_3<datum::pi)
+			theta_3 +=datum::pi;
+		else
+			theta_3 -=datum::pi;
+	}
+
+	if (theta_3<0){
+		theta_3 = 2*datum::pi + theta_3;
+	}
+
+
 	sphere_to_cart(&sph_t, &cart_3);
+	printf("theta3: %f phi3 %f\n",rad_to_deg(theta_3), rad_to_deg(phi_3) );
 
 	sph_t.x = theta_4;
 	sph_t.y = phi_4;
 	sph_t.z = RADIUS;//OUT_X/(2*datum::pi);
-	sphere_to_cart(&sph_t, &cart_4);
 
+	if (phi_4<0){
+		phi_4 *= -1;
+		if (theta_4<datum::pi)
+			theta_4 +=datum::pi;
+		else
+			theta_4 -=datum::pi;
+	}
+
+	if (theta_4<0){
+		theta_4 = 2*datum::pi + theta_4;
+	}
+
+	sphere_to_cart(&sph_t, &cart_4);
+	printf("theta4: %f phi4 %f\n",rad_to_deg(theta_4), rad_to_deg(phi_4) );
 
 	cart_c.x = (cart_1.x + cart_3.x)/2;
 	cart_c.y = (cart_1.y + cart_3.y)/2;
@@ -193,10 +267,21 @@ void create_out_plane(mat& coord, float fov){
 	printf("p3 x: %f, y: %f, z: %f\n",cart_3.x,cart_3.y,cart_3.z );
 	printf("p4 x: %f, y: %f, z: %f\n",cart_4.x,cart_4.y,cart_4.z );
 	printf("center x: %f y: %f z: %f\n",cart_c.x, cart_c.y, cart_c.z );
-	coord(0,0)=cart_1.x;coord(0,1)=cart_1.y;coord(0,2)=cart_1.z;
-	coord(1,0)=cart_2.x;coord(1,1)=cart_2.y;coord(1,2)=cart_2.z;
+	coord(0,0)=cart_2.x;coord(0,1)=cart_2.y;coord(0,2)=cart_2.z;
+	coord(1,0)=cart_4.x;coord(1,1)=cart_4.y;coord(1,2)=cart_4.z;
 	coord(2,0)=cart_3.x;coord(2,1)=cart_3.y;coord(2,2)=cart_3.z;
-	coord(3,0)=cart_4.x;coord(3,1)=cart_4.y;coord(3,2)=cart_4.z;
+	//coord(3,0)=cart_3.x;coord(3,1)=cart_3.y;coord(3,2)=cart_3.z;
+
+	// 1 			2
+	// 4 			3
+
+
+
+	// 4 			1
+	// 3 			2
+
+
+
 
 }
 
@@ -256,12 +341,19 @@ void create_rotate_matrix(float theta, float phi, mat& rmatrix){
     mat fb = mat(3,3);
     // float fan = deg_to_rad(0);
     // float fbn = deg_to_rad(-45); //phi
-    fa 	<< cos(theta) << 0 << -sin(theta) << endr
-    	<< 0 << 1 << 0 << endr
-    	<< sin(theta) << 0 << cos(theta) << endr;
+    // fa 	<< cos(theta) << 0 << -sin(theta) << endr
+    // 	<< 0 << 1 << 0 << endr
+    // 	<< sin(theta) << 0 << cos(theta) << endr;
 
-    fb << cos(phi) << -sin(phi) << 0 <<endr
-    	<< sin(phi) << cos(phi) << 0 <<endr
+    // fb << cos(phi) << -sin(phi) << 0 <<endr
+    // 	<< sin(phi) << cos(phi) << 0 <<endr
+    // 	<< 0 << 0 << 1 <<endr;
+    fb 	<< 1 		<< 0 			<< 0 			<< endr 
+    	<< 0 		<< cos(phi) 	<< -sin(phi) 	<< endr
+    	<< 0 		<< sin(phi)		<< cos(phi)		<< endr;
+
+     fa << cos(theta) << -sin(theta) << 0 <<endr
+    	<< sin(theta) << cos(theta) << 0 <<endr
     	<< 0 << 0 << 1 <<endr;
 
  	
@@ -293,7 +385,7 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
+	create_rotate_matrix(deg_to_rad(45), deg_to_rad(45), rmatrix);
 	wm =  rmatrix * pmatrix;
 
     wm.print();
@@ -312,7 +404,8 @@ int main(){
 
 	fread(pano, 4, OUT_X*OUT_Y,panofd);
 	 
-
+	 float t,ot;
+int d=0;
 	for (jj=0;jj<DEST_Y;jj++){
 		for(ii=0;ii<DEST_X;ii++){
 
@@ -327,22 +420,79 @@ int main(){
 			cr.y = outvec(1);
 			cr.z = outvec(2);
 			cart_to_sphere(&cr, &sp);
+		//	sp.y+=(datum::pi/2);
+//printf("i j %f %f\n",sp.x,rad_to_deg(sp.y) );
+			//if ((sp.y<(0) || sp.y>(datum::pi/2)){
+				// if (sp.y<(0))
+				// 	sp.y*=-1;//=(datum::pi/2);
+				// else 
+				// 	sp.y-=(datum::pi/2);
+				// if (sp.x<datum::pi){
+				// 	sp.x+=datum::pi;
+				// }else
+				// 	sp.x-=datum::pi;
+					
+		//	}
+			//sp.y-=(datum::pi/2);
+			//if ((sp.y<0) || (sp.y>(datum::pi/2)))
 
-			if ((sp.y<0) || (sp.y>datum::pi)){
-				sp.y*=-1;
-				if (sp.x<datum::pi){
-					sp.x+=datum::pi;
-				}else
-					sp.x-=datum::pi;
-				
+			//t = sp.y;
+			//ot = t;
+				// if (sp.y<0){
+				// 	sp.y = datum::pi/2 - ((datum::pi/2) + sp.y);
+				// 	if (sp.x<datum::pi){
+				// 		sp.x+=datum::pi;
+				// 	}else
+				// 		sp.x-=datum::pi;
+
+
+				// }else if (sp.y>(datum::pi/2)){
+				// 	sp.y = datum::pi/2 - (sp.y - (datum::pi/2));
+
+				// 	if (sp.x<datum::pi){
+				// 		sp.x+=datum::pi;
+				// 	}else
+				// 		sp.x-=datum::pi;
+
+				// }
+
+			if (sp.y<0){
+		sp.y *= -1;
+		if (sp.x<datum::pi)
+			sp.x +=datum::pi;
+		else
+			sp.x -=datum::pi;
+	}
+
+	if (sp.x<0){
+		sp.x = (2*datum::pi) + sp.x;
+	}else if (sp.x>(2*datum::pi))
+		sp.x = sp.x - (2*datum::pi);
+
+
+			if ((ii>315 && ii<335) && (jj==0)){
+				printf("sp.x %f sp.y %f\n", sp.x, sp.y);
 			}
-
+		
+			
+			//sp.y = t;
+			
+			//	printf("%d y: %f\n", (int)cr.y, (int) rad_to_deg(sp.y));
 			j = (int)phi_to_j(sp.y);
 			i = (int)theta_to_i(sp.x);
+		//	printf("i%d j%d   %f\n",i,j, sp.x );
+			// if (sp.y>(datum::pi/2)){
+			// //	j = j-(OUT_Y/2);
+			// 	i = i + (OUT_X/2);
+			// //	printf("offf %d \n",(d++)/640 );
+			// }
 			
-			plane[jj][DEST_X - ii-1] = pano[j][i];
+		//	printf("i j %d %d\n",i,j );
+			plane[jj][ii] = pano[j][i];
 
 		}
+		//
+		
 	}
 
 	fwrite(plane, DEST_Y*DEST_X,4,planefd);
