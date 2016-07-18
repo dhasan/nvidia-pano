@@ -153,6 +153,7 @@ struct plane {
 
 unsigned int pano[OUT_Y][OUT_X];
 unsigned int plane[DEST_Y][DEST_X];
+struct float4 bmap[OUT_Y][OUT_X];
 
 void create_out_plane(mat& coord, float fov){
 
@@ -364,6 +365,98 @@ void create_rotate_matrix(float theta, float phi, mat& rmatrix){
 	// wm = fa * pmatrix;
 }
 
+
+unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
+	unsigned int temp;
+	static int s=0;
+	unsigned char r1,g1,b1,a1;
+	unsigned char r2,g2,b2,a2;
+	unsigned char r3,g3,b3,a3;
+	unsigned char r4,g4,b4,a4;
+	float r,g,b,a;
+	r1 = (q1 & 0x00FF0000)>>16;
+	r2 = (q2 & 0x00FF0000)>>16;
+	r3 = (q3 & 0x00FF0000)>>16;
+	r4 = (q4 & 0x00FF0000)>>16;
+
+	g1 = (q1 & 0x0000FF00)>>8;
+	g2 = (q2 & 0x0000FF00)>>8;
+	g3 = (q3 & 0x0000FF00)>>8;
+	g4 = (q4 & 0x0000FF00)>>8;
+
+	b1 = (q1 & 0x000000FF)>>0;
+	b2 = (q2 & 0x000000FF)>>0;
+	b3 = (q3 & 0x000000FF)>>0;
+	b4 = (q4 & 0x000000FF)>>0;
+
+	r = vec->x*(float)r1 + vec->y*(float)r2 + vec->z*(float)r3 + vec->w*(float)r4;
+	g = vec->x*(float)g1 + vec->y*(float)g2 + vec->z*(float)g3 + vec->w*(float)g4;
+	b = vec->x*(float)b1 + vec->y*(float)b2 + vec->z*(float)b3 + vec->w*(float)b4;
+//	printf("r: %f g: %f b: %f\n",r,g,b );
+
+	//temp = b(0)*q1 + b()
+	temp =0x80000000;
+	unsigned int rr = (unsigned int)r;
+	unsigned int gg = (unsigned int)g;
+	unsigned int bb = (unsigned int)b;
+
+	//printf("%x %x %x\n", rr<<24,gg<<16, bb<<8 );
+	//printf("%x %x %x %x\n",q1,q2,q3,q4 );
+
+	temp |= ((rr<<16) | (gg<<8) | (bb<<0));
+	//printf("%x\n",temp );
+	s++;
+	return temp;
+}
+
+
+unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstride){
+
+	mat bicubic = mat(4,4);
+	vec vals = vec(4);
+	vec b= vec(4);
+	float4 bmap;
+	unsigned int val;
+
+	if ((unsigned int)floor(x)!=(unsigned int)ceil(x) && (unsigned int)floor(y)!=(unsigned int)ceil(y)){
+			bicubic << 1 << floor(x) << floor(y) << floor(x) * floor(y) << endr
+					<< 1 << floor(x) << ceil(y) << floor(x) * ceil(y) << endr
+					<< 1 << ceil(x) << floor(y) << ceil(x) * floor(y) << endr
+					<< 1 << ceil(x) << ceil(y) << ceil(x) * ceil(y) << endr;
+			
+			vals 	<< 1 << endr
+					<< x << endr
+					<< y << endr
+					<< x*y << endr;
+						
+			b = trans(inv(bicubic)) * vals;// * vals;// * vals;		
+				// b.print();
+				// printf("\n");
+			bmap.x = b(0);
+			bmap.y = b(1);
+			bmap.z = b(2);
+			bmap.w = b(3);
+		}else{
+			bmap.x = 1.0f;
+			bmap.y = 0;
+			bmap.z = 0;
+			bmap.w = 0;
+		}
+		int x1 = (int)floor(x);
+		int y1 = (int)floor(y);
+		int x2 = (int)ceil(x);
+		int y2 = (int)ceil(y);
+		// printf("q1: %x", *(data +pstride*y1 + x1));
+		// printf("q1: %x", *(data +pstride*y2 + x1));
+		// printf("q1: %x", *(data +pstride*y1 + x2));
+		// printf("q1: %x", *(data +pstride*y2 + x2));
+
+		//plane[jj][ii] = argb_interpolate(&bmap[jj][ii], pano[y1][x1], pano[y2][x1], pano[y1][x2], pano[y2][x2]); 
+		val =  argb_interpolate(&bmap, *(data +pstride*y1 + x1), *(data + pstride*y2 + x1), *(data + pstride*y1 +x2), *(data + (pstride*y2) + x2)); 
+	//	printf("%x\n", val);
+		return val;
+}	
+
 int main(){
 	int ii,jj;
     int i,j;
@@ -376,7 +469,7 @@ int main(){
 	mat wm = mat(3,3);
 	vec inputplane = vec(4);
 	
-	create_out_plane(outplane, deg_to_rad(90));
+	create_out_plane(outplane, deg_to_rad(120));
 
 	inputplane	<< 0 << endr //x1 - upper left corner
 				<< 0 << endr //y1 - upper left corner
@@ -385,7 +478,7 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(45), deg_to_rad(45), rmatrix);
+	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
 	wm =  rmatrix * pmatrix;
 
     wm.print();
@@ -404,8 +497,7 @@ int main(){
 
 	fread(pano, 4, OUT_X*OUT_Y,panofd);
 	 
-	 float t,ot;
-int d=0;
+	float jff,iff;
 	for (jj=0;jj<DEST_Y;jj++){
 		for(ii=0;ii<DEST_X;ii++){
 
@@ -420,79 +512,34 @@ int d=0;
 			cr.y = outvec(1);
 			cr.z = outvec(2);
 			cart_to_sphere(&cr, &sp);
-		//	sp.y+=(datum::pi/2);
-//printf("i j %f %f\n",sp.x,rad_to_deg(sp.y) );
-			//if ((sp.y<(0) || sp.y>(datum::pi/2)){
-				// if (sp.y<(0))
-				// 	sp.y*=-1;//=(datum::pi/2);
-				// else 
-				// 	sp.y-=(datum::pi/2);
-				// if (sp.x<datum::pi){
-				// 	sp.x+=datum::pi;
-				// }else
-				// 	sp.x-=datum::pi;
-					
-		//	}
-			//sp.y-=(datum::pi/2);
-			//if ((sp.y<0) || (sp.y>(datum::pi/2)))
 
-			//t = sp.y;
-			//ot = t;
-				// if (sp.y<0){
-				// 	sp.y = datum::pi/2 - ((datum::pi/2) + sp.y);
-				// 	if (sp.x<datum::pi){
-				// 		sp.x+=datum::pi;
-				// 	}else
-				// 		sp.x-=datum::pi;
-
-
-				// }else if (sp.y>(datum::pi/2)){
-				// 	sp.y = datum::pi/2 - (sp.y - (datum::pi/2));
-
-				// 	if (sp.x<datum::pi){
-				// 		sp.x+=datum::pi;
-				// 	}else
-				// 		sp.x-=datum::pi;
-
-				// }
 
 			if (sp.y<0){
-		sp.y *= -1;
-		if (sp.x<datum::pi)
-			sp.x +=datum::pi;
-		else
-			sp.x -=datum::pi;
-	}
-
-	if (sp.x<0){
-		sp.x = (2*datum::pi) + sp.x;
-	}else if (sp.x>(2*datum::pi))
-		sp.x = sp.x - (2*datum::pi);
-
-
-			if ((ii>315 && ii<335) && (jj==0)){
-				printf("sp.x %f sp.y %f\n", sp.x, sp.y);
+				sp.y *= -1;
+				if (sp.x<datum::pi)
+					sp.x +=datum::pi;
+				else
+					sp.x -=datum::pi;
+			}else if (sp.y>datum::pi){
+				sp.y = datum::pi - (sp.y - datum::pi);
+				if (sp.x<datum::pi)
+					sp.x +=datum::pi;
+				else
+					sp.x -=datum::pi;
 			}
-		
-			
-			//sp.y = t;
-			
-			//	printf("%d y: %f\n", (int)cr.y, (int) rad_to_deg(sp.y));
-			j = (int)phi_to_j(sp.y);
-			i = (int)theta_to_i(sp.x);
-		//	printf("i%d j%d   %f\n",i,j, sp.x );
-			// if (sp.y>(datum::pi/2)){
-			// //	j = j-(OUT_Y/2);
-			// 	i = i + (OUT_X/2);
-			// //	printf("offf %d \n",(d++)/640 );
-			// }
-			
-		//	printf("i j %d %d\n",i,j );
-			plane[jj][ii] = pano[j][i];
 
+			if (sp.x<0){
+				sp.x = (2*datum::pi) + sp.x;
+			}else if (sp.x>(2*datum::pi))
+				sp.x = sp.x - (2*datum::pi);
+
+
+			jff = phi_to_j(sp.y);
+			iff = theta_to_i(sp.x);
+
+			plane[jj][ii] = interpolate(iff, jff, &pano[0][0],OUT_X );
 		}
-		//
-		
+	
 	}
 
 	fwrite(plane, DEST_Y*DEST_X,4,planefd);
