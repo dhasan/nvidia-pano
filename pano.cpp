@@ -44,6 +44,276 @@ struct float3 {
 
 };
 
+void mul4x4x4(float *a, float *b, float *out){
+	out[0] = a[0]*b[0] + a[1]*b[4] + a[2]*b[8] + a[3]*b[12];
+	out[1] = a[0]*b[1] + a[1]*b[5] + a[2]*b[9] + a[3]*b[13];
+	out[2] = a[0]*b[2] + a[1]*b[6] + a[2]*b[10] + a[3]*b[14];
+	out[3] = a[0]*b[3] + a[1]*b[7] + a[2]*b[11] + a[3]*b[15];
+
+
+	out[4] = a[4]*b[0] + a[5]*b[4] + a[6]*b[8] + a[7]*b[12];
+	out[5] = a[4]*b[1] + a[5]*b[5] + a[6]*b[9] + a[7]*b[13];
+	out[6] = a[4]*b[2] + a[5]*b[6] + a[6]*b[10] + a[7]*b[14];
+	out[7] = a[4]*b[3] + a[5]*b[7] + a[6]*b[11] + a[7]*b[15];
+
+	out[8] = a[8]*b[0] + a[9]*b[4] + a[10]*b[8] + a[11]*b[12];
+	out[9] = a[8]*b[1] + a[9]*b[5] + a[10]*b[9] + a[11]*b[13];
+	out[10] = a[8]*b[2] + a[9]*b[6] + a[10]*b[10] + a[11]*b[14];
+	out[11] = a[8]*b[3] + a[9]*b[7] + a[10]*b[11] + a[11]*b[15];
+
+	out[12] = a[12]*b[0] + a[13]*b[4] + a[14]*b[8] + a[15]*b[12];
+	out[13] = a[12]*b[1] + a[13]*b[5] + a[14]*b[9] + a[15]*b[13];
+	out[14] = a[12]*b[2] + a[13]*b[6] + a[14]*b[10] + a[15]*b[14];
+	out[15] = a[12]*b[3] + a[13]*b[7] + a[14]*b[11] + a[15]*b[15];
+
+}
+
+
+
+void mul4x4x1(float *a, float *b, float *out){
+	out[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
+	out[1] = a[4]*b[0] + a[5]*b[1] + a[6]*b[2] + a[7]*b[3];
+	out[2] = a[8]*b[0] + a[9]*b[1] + a[10]*b[2] + a[11]*b[3];
+	out[3] = a[12]*b[0] + a[13]*b[1] + a[14]*b[2] + a[15]*b[3];
+}
+
+
+
+void trans4x4(float *data, float *out){
+	out[0] = data[0];
+	out[1] = data[4];
+	out[2] = data[8];
+	out[3] = data[12];
+
+	out[4] = data[1];
+	out[5] = data[5];
+	out[6] = data[9];
+	out[7] = data[13];
+
+	out[8] = data[2];
+	out[9] = data[6];
+	out[10]= data[10];
+	out[11] = data[14];
+
+	out[12] = data[3];
+	out[13] = data[7];
+	out[14] = data[11];
+	out[15] = data[15];
+
+}
+
+
+bool inverse4x4(float *m, float *invOut)
+{
+    float inv[16], det;
+    int i;
+
+    inv[0] = m[5]  * m[10] * m[15] - 
+             m[5]  * m[11] * m[14] - 
+             m[9]  * m[6]  * m[15] + 
+             m[9]  * m[7]  * m[14] +
+             m[13] * m[6]  * m[11] - 
+             m[13] * m[7]  * m[10];
+
+    inv[4] = -m[4]  * m[10] * m[15] + 
+              m[4]  * m[11] * m[14] + 
+              m[8]  * m[6]  * m[15] - 
+              m[8]  * m[7]  * m[14] - 
+              m[12] * m[6]  * m[11] + 
+              m[12] * m[7]  * m[10];
+
+    inv[8] = m[4]  * m[9] * m[15] - 
+             m[4]  * m[11] * m[13] - 
+             m[8]  * m[5] * m[15] + 
+             m[8]  * m[7] * m[13] + 
+             m[12] * m[5] * m[11] - 
+             m[12] * m[7] * m[9];
+
+    inv[12] = -m[4]  * m[9] * m[14] + 
+               m[4]  * m[10] * m[13] +
+               m[8]  * m[5] * m[14] - 
+               m[8]  * m[6] * m[13] - 
+               m[12] * m[5] * m[10] + 
+               m[12] * m[6] * m[9];
+
+    inv[1] = -m[1]  * m[10] * m[15] + 
+              m[1]  * m[11] * m[14] + 
+              m[9]  * m[2] * m[15] - 
+              m[9]  * m[3] * m[14] - 
+              m[13] * m[2] * m[11] + 
+              m[13] * m[3] * m[10];
+
+    inv[5] = m[0]  * m[10] * m[15] - 
+             m[0]  * m[11] * m[14] - 
+             m[8]  * m[2] * m[15] + 
+             m[8]  * m[3] * m[14] + 
+             m[12] * m[2] * m[11] - 
+             m[12] * m[3] * m[10];
+
+    inv[9] = -m[0]  * m[9] * m[15] + 
+              m[0]  * m[11] * m[13] + 
+              m[8]  * m[1] * m[15] - 
+              m[8]  * m[3] * m[13] - 
+              m[12] * m[1] * m[11] + 
+              m[12] * m[3] * m[9];
+
+    inv[13] = m[0]  * m[9] * m[14] - 
+              m[0]  * m[10] * m[13] - 
+              m[8]  * m[1] * m[14] + 
+              m[8]  * m[2] * m[13] + 
+              m[12] * m[1] * m[10] - 
+              m[12] * m[2] * m[9];
+
+    inv[2] = m[1]  * m[6] * m[15] - 
+             m[1]  * m[7] * m[14] - 
+             m[5]  * m[2] * m[15] + 
+             m[5]  * m[3] * m[14] + 
+             m[13] * m[2] * m[7] - 
+             m[13] * m[3] * m[6];
+
+    inv[6] = -m[0]  * m[6] * m[15] + 
+              m[0]  * m[7] * m[14] + 
+              m[4]  * m[2] * m[15] - 
+              m[4]  * m[3] * m[14] - 
+              m[12] * m[2] * m[7] + 
+              m[12] * m[3] * m[6];
+
+    inv[10] = m[0]  * m[5] * m[15] - 
+              m[0]  * m[7] * m[13] - 
+              m[4]  * m[1] * m[15] + 
+              m[4]  * m[3] * m[13] + 
+              m[12] * m[1] * m[7] - 
+              m[12] * m[3] * m[5];
+
+    inv[14] = -m[0]  * m[5] * m[14] + 
+               m[0]  * m[6] * m[13] + 
+               m[4]  * m[1] * m[14] - 
+               m[4]  * m[2] * m[13] - 
+               m[12] * m[1] * m[6] + 
+               m[12] * m[2] * m[5];
+
+    inv[3] = -m[1] * m[6] * m[11] + 
+              m[1] * m[7] * m[10] + 
+              m[5] * m[2] * m[11] - 
+              m[5] * m[3] * m[10] - 
+              m[9] * m[2] * m[7] + 
+              m[9] * m[3] * m[6];
+
+    inv[7] = m[0] * m[6] * m[11] - 
+             m[0] * m[7] * m[10] - 
+             m[4] * m[2] * m[11] + 
+             m[4] * m[3] * m[10] + 
+             m[8] * m[2] * m[7] - 
+             m[8] * m[3] * m[6];
+
+    inv[11] = -m[0] * m[5] * m[11] + 
+               m[0] * m[7] * m[9] + 
+               m[4] * m[1] * m[11] - 
+               m[4] * m[3] * m[9] - 
+               m[8] * m[1] * m[7] + 
+               m[8] * m[3] * m[5];
+
+    inv[15] = m[0] * m[5] * m[10] - 
+              m[0] * m[6] * m[9] - 
+              m[4] * m[1] * m[10] + 
+              m[4] * m[2] * m[9] + 
+              m[8] * m[1] * m[6] - 
+              m[8] * m[2] * m[5];
+
+    det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+
+    if (det == 0)
+        return false;
+
+    det = 1.0 / det;
+
+    for (i = 0; i < 16; i++)
+        invOut[i] = inv[i] * det;
+
+    return true;
+}
+
+
+
+
+float det3x3(float *data){
+
+	float p1 = *(data + 0*3 + 0) * *(data + 1*3 + 1) * *(data + 2*3 + 2);
+	float p2 = *(data + 0*3 + 1) * *(data + 1*3 + 2) * *(data + 2*3 + 0);
+	float p3 = *(data + 1*3 + 0) * *(data + 2*3 + 1) * *(data + 0*3 + 2);
+
+	float n1 = *(data + 0*3 + 2) * *(data + 1*3 + 1) * *(data + 2*3 + 0);
+	float n2 = *(data + 1*3 + 0) * *(data + 0*3 + 1) * *(data + 2*3 + 2);
+	float n3 = *(data + 2*3 + 1) * *(data + 1*3 + 2) * *(data + 0*3 + 0);
+
+	return p1+p2+p3-n1-n2-n3;
+
+}
+
+float det2x2(float *data){
+	float p1 = *(data + 0*2 + 0) * *(data + 1*2 + 1);
+	float n1 = *(data + 0*2 + 2) * *(data + 1*2 + 1);
+
+	return p1-n1;
+}
+
+
+float det2x2args(float a11, float a12, float a21, float a22){
+	return a11*a22 - a12*a21;
+}
+
+float inverse3x3(float *data, float *out){
+	float det = det3x3(data);
+	if (det==0)
+		return false;
+	out[0] =  1*det2x2args(data[4], data[5], data[7], data[8])/det;
+	out[1] = -1*det2x2args(data[1], data[2], data[7], data[8])/det;
+	out[2] =  1*det2x2args(data[1], data[2], data[4], data[5])/det;
+	out[3] = -1*det2x2args(data[3], data[5], data[6], data[8])/det;
+	out[4] =  1*det2x2args(data[0], data[2], data[6], data[8])/det;
+	out[5] = -1*det2x2args(data[0], data[2], data[3], data[5])/det;
+	out[6] =  1*det2x2args(data[3], data[4], data[6], data[7])/det;
+	out[7] = -1*det2x2args(data[0], data[1], data[6], data[7])/det;
+	out[8] =  1*det2x2args(data[0], data[1], data[3], data[4])/det;
+
+	return true;
+
+}
+
+void mul3x3x3(float *a, float *b, float *out){
+	 out[0] = a[0]*b[0] + a[1]*b[3] + a[2]*b[6];
+	 out[1] = a[0]*b[1] + a[1]*b[4] + a[2]*b[7];
+	 out[2] = a[0]*b[2] + a[1]*b[5] + a[2]*b[8];
+
+	 out[3] = a[3]*b[0] + a[4]*b[3] + a[5]*b[6];
+	 out[4] = a[3]*b[1] + a[4]*b[4] + a[5]*b[7];
+	 out[5] = a[3]*b[2] + a[4]*b[5] + a[5]*b[8];
+
+	 out[6] = a[6]*b[0] + a[7]*b[3] + a[8]*b[6];
+	 out[7] = a[6]*b[1] + a[7]*b[4] + a[8]*b[7];
+	 out[8] = a[6]*b[2] + a[7]*b[5] + a[8]*b[8];
+}
+
+void mul3x3x1(float *a, float *b, float *out){
+
+	out[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+	out[1] = a[3]*b[0] + a[4]*b[1] + a[5]*b[2];
+	out[2] = a[6]*b[0] + a[7]*b[1] + a[8]*b[2];
+
+}
+
+void trans3x3(float *data, float *out){
+	out[0] = data[0];
+	out[1] = data[3];
+	out[2] = data[6];
+	out[3] = data[1];
+	out[4] = data[4];
+	out[5] = data[7];
+	out[6] = data[2];
+	out[7] = data[5];
+	out[8] = data[8];
+
+}
 
 
 float phi_to_j(float phi){
@@ -70,9 +340,6 @@ float rad_to_deg(float rad){
 
 
 void sphere_to_cart(float3 *sph, float3 *cart){
-	// float x = sph->z*cos(sph->y)*cos(sph->x);
-	// float y = sph->z*sin(sph->y); 
-	// float z = sph->z*cos(sph->y)*sin(sph->x);
 
 	float x = sph->z*cos(sph->x)*sin(sph->y);
 	float y = sph->z*sin(sph->x)*sin(sph->y);
@@ -87,21 +354,7 @@ void cart_to_sphere(float3 *cart, float3 *sph){
 	float theta;
 	float phi;
 	float r = sqrt((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
-	// if (cart->x==0){
-	// 	if (cart->z<0)
-	// 		theta = -1*datum::pi;
-	// 	else
-	// 		theta = datum::pi;
-	// }else
-	// 	theta = atan(cart->z/cart->x);
-
-
-	// //float phi = atan(r/cart->y);
-	// if (cart->x>0)
-	// 	phi = acos(cart->y/r);
-	// else 
-	// 	phi = acos(cart->y/r)*-1;
-
+	
 	if (cart->x==0) 
 		if (cart->y < 0)
 			theta = -datum::pi/2;
@@ -140,28 +393,13 @@ struct plane {
 
 };
 
-// struct dest {
-
-// 	mat transp;
-// 	float3 rota;
-// 	float3 scale;
-
-// 	mat world_matrix;
-
-// };
-
-
 unsigned int pano[OUT_Y][OUT_X];
 unsigned int plane[DEST_Y][DEST_X];
 struct float4 bmap[OUT_Y][OUT_X];
 
 void create_out_plane(mat& coord, float fov){
 
-
-//	struct dest *dest;
 	float3 cart_c;
-
-//	dest = new struct dest;
 
 	float3 cart_1,cart_2,cart_3,cart_4;
 	float3 sph_t;
@@ -271,19 +509,6 @@ void create_out_plane(mat& coord, float fov){
 	coord(0,0)=cart_2.x;coord(0,1)=cart_2.y;coord(0,2)=cart_2.z;
 	coord(1,0)=cart_4.x;coord(1,1)=cart_4.y;coord(1,2)=cart_4.z;
 	coord(2,0)=cart_3.x;coord(2,1)=cart_3.y;coord(2,2)=cart_3.z;
-	//coord(3,0)=cart_3.x;coord(3,1)=cart_3.y;coord(3,2)=cart_3.z;
-
-	// 1 			2
-	// 4 			3
-
-
-
-	// 4 			1
-	// 3 			2
-
-
-
-
 }
 
 void create_project_matrix(mat& outplane, mat& inputplane, mat& pmatrix){
@@ -306,7 +531,6 @@ void create_project_matrix(mat& outplane, mat& inputplane, mat& pmatrix){
  
     l1 =inv(pa) * p1;
 
-//    mat wm = mat(3,3);
     pmatrix(0,0) = l1(0);
     pmatrix(0,1) = l1(1);
     pmatrix(0,2) = l1(2);
@@ -336,39 +560,26 @@ void create_project_matrix(mat& outplane, mat& inputplane, mat& pmatrix){
 
 void create_rotate_matrix(float theta, float phi, mat& rmatrix){
 
-	
-
     mat fa = mat(3,3);
     mat fb = mat(3,3);
-    // float fan = deg_to_rad(0);
-    // float fbn = deg_to_rad(-45); //phi
-    // fa 	<< cos(theta) << 0 << -sin(theta) << endr
-    // 	<< 0 << 1 << 0 << endr
-    // 	<< sin(theta) << 0 << cos(theta) << endr;
 
-    // fb << cos(phi) << -sin(phi) << 0 <<endr
-    // 	<< sin(phi) << cos(phi) << 0 <<endr
-    // 	<< 0 << 0 << 1 <<endr;
     fb 	<< 1 		<< 0 			<< 0 			<< endr 
     	<< 0 		<< cos(phi) 	<< -sin(phi) 	<< endr
     	<< 0 		<< sin(phi)		<< cos(phi)		<< endr;
 
-     fa << cos(theta) << -sin(theta) << 0 <<endr
-    	<< sin(theta) << cos(theta) << 0 <<endr
-    	<< 0 << 0 << 1 <<endr;
+    fa 	<< cos(theta) 	<< -sin(theta) 	<< 0 <<endr
+    	<< sin(theta) 	<<  cos(theta) 	<< 0 <<endr
+    	<< 0 			<< 	0 			<< 1 <<endr;
 
  	
  	rmatrix = fa * fb;
-	//pmatrix =  fa * pmatrix;
 
-	// wm = fb * pmatrix;
-	// wm = fa * pmatrix;
 }
 
 
 unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
 	unsigned int temp;
-	static int s=0;
+	//static int s=0;
 	unsigned char r1,g1,b1,a1;
 	unsigned char r2,g2,b2,a2;
 	unsigned char r3,g3,b3,a3;
@@ -392,50 +603,104 @@ unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int 
 	r = vec->x*(float)r1 + vec->y*(float)r2 + vec->z*(float)r3 + vec->w*(float)r4;
 	g = vec->x*(float)g1 + vec->y*(float)g2 + vec->z*(float)g3 + vec->w*(float)g4;
 	b = vec->x*(float)b1 + vec->y*(float)b2 + vec->z*(float)b3 + vec->w*(float)b4;
-//	printf("r: %f g: %f b: %f\n",r,g,b );
 
-	//temp = b(0)*q1 + b()
-	temp =0x80000000;
 	unsigned int rr = (unsigned int)r;
 	unsigned int gg = (unsigned int)g;
 	unsigned int bb = (unsigned int)b;
-
-	//printf("%x %x %x\n", rr<<24,gg<<16, bb<<8 );
-	//printf("%x %x %x %x\n",q1,q2,q3,q4 );
-
+	temp = 0x80000000;
 	temp |= ((rr<<16) | (gg<<8) | (bb<<0));
-	//printf("%x\n",temp );
-	s++;
+	
 	return temp;
 }
 
 
 unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstride){
-
 	mat bicubic = mat(4,4);
 	vec vals = vec(4);
 	vec b= vec(4);
+
+	float nv_bicubic[16];
+	float nv_vals[4], nv_b[4];
+
+	float nv_inv[16];
+	float nv_transp[16];
+
+	nv_bicubic[0] = 1;
+	nv_bicubic[1] = floor(x);
+	nv_bicubic[2] = floor(y);
+	nv_bicubic[3] = floor(x) * floor(y);
+	nv_bicubic[4] = 1;
+	nv_bicubic[5] = floor(x);
+	nv_bicubic[6] = ceil(y);
+	nv_bicubic[7] = floor(x) * ceil(y);
+	nv_bicubic[8] = 1;
+	nv_bicubic[9] = ceil(x);
+	nv_bicubic[10] = floor(y);
+	nv_bicubic[11] = ceil(x) * floor(y);
+	nv_bicubic[12] = 1;
+	nv_bicubic[13] = ceil(x);
+	nv_bicubic[14] = ceil(y);
+	nv_bicubic[15] = ceil(x) * ceil(y);
+
+	nv_vals[0] = 1;
+	nv_vals[1] = x;
+	nv_vals[2] = y;
+	nv_vals[3] = x*y;
+	
+	
+
+
+
 	float4 bmap;
 	unsigned int val;
 
 	if ((unsigned int)floor(x)!=(unsigned int)ceil(x) && (unsigned int)floor(y)!=(unsigned int)ceil(y)){
+
 			bicubic << 1 << floor(x) << floor(y) << floor(x) * floor(y) << endr
 					<< 1 << floor(x) << ceil(y) << floor(x) * ceil(y) << endr
 					<< 1 << ceil(x) << floor(y) << ceil(x) * floor(y) << endr
 					<< 1 << ceil(x) << ceil(y) << ceil(x) * ceil(y) << endr;
+			mat inv2 = inv(bicubic);
 			
-			vals 	<< 1 << endr
-					<< x << endr
-					<< y << endr
-					<< x*y << endr;
+			nv_inv[0] = inv2(0,0);
+			nv_inv[1] = inv2(0,1);
+			nv_inv[2] = inv2(0,2);
+			nv_inv[3] = inv2(0,3);
+
+			nv_inv[4] = inv2(1,0);
+			nv_inv[5] = inv2(1,1);
+			nv_inv[6] = inv2(1,2);
+			nv_inv[7] = inv2(1,3);
+
+			nv_inv[8] = inv2(2,0);
+			nv_inv[9] = inv2(2,1);
+			nv_inv[10] = inv2(2,2);
+			nv_inv[11] = inv2(2,3);
+
+			nv_inv[12] = inv2(3,0);
+			nv_inv[13] = inv2(3,1);
+			nv_inv[14] = inv2(3,2);
+			nv_inv[15] = inv2(3,3);
+			
+			// vals 	<< 1 << endr
+			// 		<< x << endr
+			// 		<< y << endr
+			// 		<< x*y << endr;
+
+			//inverse4x4(nv_bicubic, nv_inv);
+			trans4x4(nv_inv, nv_transp);
+			mul4x4x1(nv_transp, nv_vals, nv_b);
 						
-			b = trans(inv(bicubic)) * vals;// * vals;// * vals;		
-				// b.print();
-				// printf("\n");
-			bmap.x = b(0);
-			bmap.y = b(1);
-			bmap.z = b(2);
-			bmap.w = b(3);
+			//b = trans(inv(bicubic)) * vals;// * vals;// * vals;		
+				
+			// bmap.x = b(0);
+			// bmap.y = b(1);
+			// bmap.z = b(2);
+			// bmap.w = b(3);
+			bmap.x = nv_b[0];
+			bmap.y = nv_b[1];
+			bmap.z = nv_b[2];
+			bmap.w = nv_b[3];
 		}else{
 			bmap.x = 1.0f;
 			bmap.y = 0;
@@ -446,14 +711,9 @@ unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstr
 		int y1 = (int)floor(y);
 		int x2 = (int)ceil(x);
 		int y2 = (int)ceil(y);
-		// printf("q1: %x", *(data +pstride*y1 + x1));
-		// printf("q1: %x", *(data +pstride*y2 + x1));
-		// printf("q1: %x", *(data +pstride*y1 + x2));
-		// printf("q1: %x", *(data +pstride*y2 + x2));
-
-		//plane[jj][ii] = argb_interpolate(&bmap[jj][ii], pano[y1][x1], pano[y2][x1], pano[y1][x2], pano[y2][x2]); 
+	
 		val =  argb_interpolate(&bmap, *(data +pstride*y1 + x1), *(data + pstride*y2 + x1), *(data + pstride*y1 +x2), *(data + (pstride*y2) + x2)); 
-	//	printf("%x\n", val);
+
 		return val;
 }	
 
@@ -496,23 +756,35 @@ int main(){
 	}
 
 	fread(pano, 4, OUT_X*OUT_Y,panofd);
-	 
+	
+	float nv_wm[9];
+	float nv_invec[3], nv_outvec[3];
+
+	nv_wm[0] = wm(0,0);
+	nv_wm[1] = wm(0,1);
+	nv_wm[2] = wm(0,2);
+	nv_wm[3] = wm(1,0);
+	nv_wm[4] = wm(1,1);
+	nv_wm[5] = wm(1,2);
+	nv_wm[6] = wm(2,0);
+	nv_wm[7] = wm(2,1);
+	nv_wm[8] = wm(2,2);
+
 	float jff,iff;
 	for (jj=0;jj<DEST_Y;jj++){
 		for(ii=0;ii<DEST_X;ii++){
 
-			invec 	<< ii << endr
-					<< jj << endr
-					<< 1 << endr;
+			nv_invec[0] = (float)ii;
+			nv_invec[1] = (float)jj;
+			nv_invec[2] = (float)1;
+			
+			mul3x3x1(nv_wm, nv_invec, nv_outvec);
 
-			outvec = wm * invec;
+			cr.x = nv_outvec[0];
+			cr.y = nv_outvec[1];
+			cr.z = nv_outvec[2];
 
-
-			cr.x = outvec(0);
-			cr.y = outvec(1);
-			cr.z = outvec(2);
 			cart_to_sphere(&cr, &sp);
-
 
 			if (sp.y<0){
 				sp.y *= -1;
@@ -532,7 +804,6 @@ int main(){
 				sp.x = (2*datum::pi) + sp.x;
 			}else if (sp.x>(2*datum::pi))
 				sp.x = sp.x - (2*datum::pi);
-
 
 			jff = phi_to_j(sp.y);
 			iff = theta_to_i(sp.x);
