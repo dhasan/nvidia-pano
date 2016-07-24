@@ -17,18 +17,19 @@
 //#define RADIUS		(1)
 #define RADIUS		(OUT_X/(2*datum::pi))
 
+unsigned int sdata[6][1200][1200];
 
 #define MAX(a,b) (a>b)?a:b
 #define MIN(a,b) (a<b)?a:b
 
 using namespace arma;
 
-struct int4 {
-	int x;
-	int y;
-	int z;
-	int w;
-};
+// struct int4 {
+// 	int x;
+// 	int y;
+// 	int z;
+// 	int w;
+// };
 
 struct float4 {
 	float x;
@@ -317,9 +318,19 @@ struct plane {
 
 };
 
-unsigned int pano[OUT_Y][OUT_X];
+struct int4 {
+	 int x;
+	 int y;
+	 int z;
+	 int w;
+};
+
+//unsigned int pano[OUT_Y][OUT_X];
+struct int4 xymap[OUT_Y][OUT_X];
+//unsigned int bmap[OUT_Y][OUT_X];
+
 unsigned int plane[DEST_Y][DEST_X];
-struct float4 bmap[OUT_Y][OUT_X];
+struct float4 bmapg[OUT_Y][OUT_X];
 
 void create_out_plane(mat& coord, float fov){
 
@@ -588,8 +599,43 @@ unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstr
 	y1 = (int)floor(y);
 	x2 = (int)ceil(x);
 	y2 = (int)ceil(y);
+
+
+	//int sid = xymap[y1][x1].x >> 16;
+	int sid = 0;
+
+	unsigned int q1y1 = xymap[y1][x1].y;
+	unsigned int q1x1 = xymap[y1][x1].x & 0x0000FFFF;
+
+	//printf("q1 %d %d %d %d\n", xymap[q1y1][q1x1].x, xymap[q1y1][q1x1].y, xymap[q1y1][q1x1].z, xymap[q1y1][q1x1].w);
+						//y1 			//x1
 	
-	val =  argb_interpolate(&bmap, *(data +pstride*y1 + x1), *(data + pstride*y2 + x1), *(data + pstride*y1 +x2), *(data + (pstride*y2) + x2)); 
+	//Create function that multiplies color by color depending on col format
+	//simply multiply wont work
+
+	unsigned int q1 = 	sdata[sid][q1y1][q1x1] * bmapg[q1y1][q1x1].x +
+			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF] * bmapg[xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF].y +
+			sdata[sid][xymap[y1][x1].y][xymap[y1][x1].z] * bmapg[xymap[y1][x1].y][xymap[y1][x1].z].z +
+			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].z] * bmapg[xymap[y1][x1].w][xymap[y1][x1].z].w;// +
+
+	unsigned int q2 = 	sdata[sid][xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF] * bmapg[xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF].x +
+			sdata[sid][xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF] * bmapg[xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF].y +
+			sdata[sid][xymap[y2][x1].y][xymap[y2][x1].z] * bmapg[xymap[y2][x1].y][xymap[y2][x1].z].z +
+			sdata[sid][xymap[y2][x1].w][xymap[y2][x1].z] * bmapg[xymap[y2][x1].w][xymap[y2][x1].z].w;// +
+	
+	unsigned int q3 = 	sdata[sid][xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF].x +
+			sdata[sid][xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF].y +
+			sdata[sid][xymap[y1][x2].y][xymap[y1][x2].z] * bmapg[xymap[y1][x1].y][xymap[y1][x2].z].z +
+			sdata[sid][xymap[y1][x2].w][xymap[y1][x2].z] * bmapg[xymap[y1][x1].w][xymap[y1][x2].z].w;// +
+
+	unsigned int q4 = 	sdata[sid][xymap[y2][x2].y][xymap[y2][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].y][xymap[y2][x2].x & 0x0000FFFF].x +
+			sdata[sid][xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF] * bmapg[xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF].y +
+			sdata[sid][xymap[y2][x2].y][xymap[y2][x2].z] * bmapg[xymap[y2][x1].y][xymap[y2][x2].z].z +
+			sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z] * bmapg[xymap[y2][x1].w][xymap[y2][x2].z].w;// +
+
+	printf("%08x %08x %08x %08x\n",sdata[0][100][100],q2,q3,q4 );
+	//val =  argb_interpolate(&bmap, *(data +pstride*y1 + x1), *(data + pstride*y2 + x1), *(data + pstride*y1 +x2), *(data + (pstride*y2) + x2)); 
+	val =  argb_interpolate(&bmap, q1, q2, q3, q4); 
 
 	return val;
 }	
@@ -621,19 +667,41 @@ int main(){
     wm.print();
    
 
-	FILE *panofd = fopen("e1s.rgba","rb");
-	if (panofd==NULL){
-		printf("can't open pano file\n");
-		exit(1);
-	}
+	// FILE *panofd = fopen("e1s.rgba","rb");
+	// if (panofd==NULL){
+	// 	printf("can't open pano file\n");
+	// 	exit(1);
+	// }
+
+    FILE *xymapfd = fopen("xymap.bin", "rb");
+    if (xymapfd == NULL){
+    	printf("can't open xymap\n");
+    	exit(1);
+    }
+
+    FILE *bmapfd = fopen("bmap.bin", "rb");
+    if (bmapfd==NULL){
+    	printf("can't open bmap\n");
+    	exit(1);
+    }
+
+    FILE *frfd = fopen("front.rgb", "rb");
+    if (frfd==NULL){
+    	printf("can't open front\n");
+    	exit(1);
+    }
+
 	FILE *planefd = fopen("plane.rgb", "wb+");
 	if (planefd==NULL){
 		printf("cant create output file\n");
 		exit(1);
 	}
 
-	fread(pano, 4, OUT_X*OUT_Y,panofd);
-	
+	//fread(pano, 4, OUT_X*OUT_Y,panofd);
+	fread(xymap, sizeof(struct int4), OUT_X*OUT_Y, xymapfd);
+	fread(bmapg, sizeof(struct float4), OUT_Y*OUT_X, bmapfd);
+	fread(&sdata[0], 4, 1200*1200, frfd);
+
 	float nv_wm[9];
 	float nv_invec[3], nv_outvec[3];
 
@@ -685,16 +753,20 @@ int main(){
 			jff = phi_to_j(sp.y);
 			iff = theta_to_i(sp.x);
 
-			plane[jj][ii] = interpolate(iff, jff, &pano[0][0],OUT_X );
+			plane[jj][ii] = interpolate(iff, jff, NULL,OUT_X );
 		}
 	
 	}
 
 	fwrite(plane, DEST_Y*DEST_X,4,planefd);
-	fflush(panofd);
+	//fflush(panofd);
 	fflush(planefd);
+	fflush(xymapfd);
+	fflush(bmapfd);
 	fclose(planefd);
-	fclose(panofd);
+	//fclose(panofd);
+	fclose(xymapfd);
+	fclose(bmapfd);
 
 }
 
