@@ -7,10 +7,10 @@ using namespace arma;
 #define		GET_PLANE_DOTS(id,dotid,prop)	PLANE_##id##_DOT_##dotid##_##prop
 
 struct int4 {
-	int x;
-	int y;
-	int z;
-	int w;
+	unsigned int x;
+	unsigned int y;
+	unsigned int z;
+	unsigned int w;
 };
 
 struct float4 {
@@ -197,39 +197,42 @@ void defplane(int id, struct plane *plane, struct source **src){
 
 unsigned int inter_sum(struct float4 *vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
 	unsigned int temp;
-
+	//static int s=0;
 	unsigned char r1,g1,b1,a1;
 	unsigned char r2,g2,b2,a2;
 	unsigned char r3,g3,b3,a3;
 	unsigned char r4,g4,b4,a4;
 	float r,g,b,a;
-	r1 = q1>>24;
-	r2 = q2>>24;
-	r3 = q3>>24;
-	r4 = q4>>24;
+	r1 = (q1 & 0x00FF0000)>>16;
+	r2 = (q2 & 0x00FF0000)>>16;
+	r3 = (q3 & 0x00FF0000)>>16;
+	r4 = (q4 & 0x00FF0000)>>16;
 
-	g1 = (q1 & 0x00FF0000)>>16;
-	g2 = (q2 & 0x00FF0000)>>16;
-	g3 = (q3 & 0x00FF0000)>>16;
-	g4 = (q4 & 0x00FF0000)>>16;
+	g1 = (q1 & 0x0000FF00)>>8;
+	g2 = (q2 & 0x0000FF00)>>8;
+	g3 = (q3 & 0x0000FF00)>>8;
+	g4 = (q4 & 0x0000FF00)>>8;
 
-	b1 = (q1 & 0x0000FF00)>>8;
-	b2 = (q2 & 0x0000FF00)>>8;
-	b3 = (q3 & 0x0000FF00)>>8;
-	b4 = (q4 & 0x0000FF00)>>8;
+	b1 = (q1 & 0x000000FF)>>0;
+	b2 = (q2 & 0x000000FF)>>0;
+	b3 = (q3 & 0x000000FF)>>0;
+	b4 = (q4 & 0x000000FF)>>0;
 
 	r = vec->x*(float)r1 + vec->y*(float)r2 + vec->z*(float)r3 + vec->w*(float)r4;
 	g = vec->x*(float)g1 + vec->y*(float)g2 + vec->z*(float)g3 + vec->w*(float)g4;
 	b = vec->x*(float)b1 + vec->y*(float)b2 + vec->z*(float)b3 + vec->w*(float)b4;
-//	printf("r: %f g: %f b: %f\n",r,g,b );
 
-	//temp = b(0)*q1 + b()
-	temp =0x80;
 	unsigned int rr = (unsigned int)r;
 	unsigned int gg = (unsigned int)g;
 	unsigned int bb = (unsigned int)b;
-
-	temp |= (rr<<24 | (gg<<16) | bb<<8);
+	if (rr>255)
+		rr = 255;
+	if (gg>255)
+		gg=255;
+	if (bb>255)
+		bb=255;
+	temp = 0x80000000;
+	temp |= ((rr<<16) | (gg<<8) | (bb<<0));
 	//printf("%x\n",temp );
 	return temp;
 }

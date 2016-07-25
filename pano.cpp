@@ -542,6 +542,12 @@ unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int 
 	unsigned int rr = (unsigned int)r;
 	unsigned int gg = (unsigned int)g;
 	unsigned int bb = (unsigned int)b;
+	if (rr>255)
+		rr = 255;
+	if (gg>255)
+		gg=255;
+	if (bb>255)
+		bb=255;
 	temp = 0x80000000;
 	temp |= ((rr<<16) | (gg<<8) | (bb<<0));
 	
@@ -601,8 +607,8 @@ unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstr
 	y2 = (int)ceil(y);
 
 
-	//int sid = xymap[y1][x1].x >> 16;
-	int sid = 0;
+	int sid = xymap[y1][x1].x >> 16;
+//	int sid = 0;
 
 	unsigned int q1y1 = xymap[y1][x1].y;
 	unsigned int q1x1 = xymap[y1][x1].x & 0x0000FFFF;
@@ -613,27 +619,56 @@ unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstr
 	//Create function that multiplies color by color depending on col format
 	//simply multiply wont work
 
-	unsigned int q1 = 	sdata[sid][q1y1][q1x1] * bmapg[q1y1][q1x1].x +
-			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF] * bmapg[xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF].y +
-			sdata[sid][xymap[y1][x1].y][xymap[y1][x1].z] * bmapg[xymap[y1][x1].y][xymap[y1][x1].z].z +
-			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].z] * bmapg[xymap[y1][x1].w][xymap[y1][x1].z].w;// +
 
-	unsigned int q2 = 	sdata[sid][xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF] * bmapg[xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF].x +
-			sdata[sid][xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF] * bmapg[xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF].y +
-			sdata[sid][xymap[y2][x1].y][xymap[y2][x1].z] * bmapg[xymap[y2][x1].y][xymap[y2][x1].z].z +
-			sdata[sid][xymap[y2][x1].w][xymap[y2][x1].z] * bmapg[xymap[y2][x1].w][xymap[y2][x1].z].w;// +
+
+
+	// unsigned int q1 = 	sdata[sid][q1y1][q1x1] * bmapg[q1y1][q1x1].x +
+	// 		sdata[sid][xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF] * bmapg[xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF].y +
+	// 		sdata[sid][xymap[y1][x1].y][xymap[y1][x1].z] * bmapg[xymap[y1][x1].y][xymap[y1][x1].z].z +
+	// 		sdata[sid][xymap[y1][x1].w][xymap[y1][x1].z] * bmapg[xymap[y1][x1].w][xymap[y1][x1].z].w;// +
+
+	// unsigned int q2 = 	sdata[sid][xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF] * bmapg[xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF].x +
+	// 		sdata[sid][xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF] * bmapg[xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF].y +
+	// 		sdata[sid][xymap[y2][x1].y][xymap[y2][x1].z] * bmapg[xymap[y2][x1].y][xymap[y2][x1].z].z +
+	// 		sdata[sid][xymap[y2][x1].w][xymap[y2][x1].z] * bmapg[xymap[y2][x1].w][xymap[y2][x1].z].w;// +
 	
-	unsigned int q3 = 	sdata[sid][xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF].x +
-			sdata[sid][xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF].y +
-			sdata[sid][xymap[y1][x2].y][xymap[y1][x2].z] * bmapg[xymap[y1][x1].y][xymap[y1][x2].z].z +
-			sdata[sid][xymap[y1][x2].w][xymap[y1][x2].z] * bmapg[xymap[y1][x1].w][xymap[y1][x2].z].w;// +
+	// unsigned int q3 = 	sdata[sid][xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF].x +
+	// 		sdata[sid][xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF].y +
+	// 		sdata[sid][xymap[y1][x2].y][xymap[y1][x2].z] * bmapg[xymap[y1][x1].y][xymap[y1][x2].z].z +
+	// 		sdata[sid][xymap[y1][x2].w][xymap[y1][x2].z] * bmapg[xymap[y1][x1].w][xymap[y1][x2].z].w;// +
 
-	unsigned int q4 = 	sdata[sid][xymap[y2][x2].y][xymap[y2][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].y][xymap[y2][x2].x & 0x0000FFFF].x +
-			sdata[sid][xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF] * bmapg[xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF].y +
-			sdata[sid][xymap[y2][x2].y][xymap[y2][x2].z] * bmapg[xymap[y2][x1].y][xymap[y2][x2].z].z +
-			sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z] * bmapg[xymap[y2][x1].w][xymap[y2][x2].z].w;// +
+	// unsigned int q4 = 	sdata[sid][xymap[y2][x2].y][xymap[y2][x2].x & 0x0000FFFF] * bmapg[xymap[y1][x2].y][xymap[y2][x2].x & 0x0000FFFF].x +
+	// 		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF] * bmapg[xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF].y +
+	// 		sdata[sid][xymap[y2][x2].y][xymap[y2][x2].z] * bmapg[xymap[y2][x1].y][xymap[y2][x2].z].z +
+	// 		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z] * bmapg[xymap[y2][x1].w][xymap[y2][x2].z].w;// +
 
-	printf("%08x %08x %08x %08x\n",sdata[0][100][100],q2,q3,q4 );
+	
+	unsigned int q1 = argb_interpolate(&bmapg[xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF],
+			sdata[sid][q1y1][q1x1],
+			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF],
+			sdata[sid][xymap[y1][x1].y][xymap[y1][x1].z],
+			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].z]);
+	unsigned int q2 = argb_interpolate(&bmapg[xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF],
+		sdata[sid][xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF],
+		sdata[sid][xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF],
+		sdata[sid][xymap[y2][x1].y][xymap[y2][x1].z],
+		sdata[sid][xymap[y2][x1].w][xymap[y2][x1].z]);
+	unsigned int q3 = argb_interpolate(&bmapg[xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF],
+		sdata[sid][xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF],
+		sdata[sid][xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF],
+		sdata[sid][xymap[y1][x2].y][xymap[y1][x2].z],
+		sdata[sid][xymap[y1][x2].w][xymap[y1][x2].z]);
+	unsigned int q4 = argb_interpolate(&bmapg[xymap[y1][x2].y][xymap[y2][x2].x & 0x0000FFFF],
+		sdata[sid][xymap[y2][x2].y][xymap[y2][x2].x & 0x0000FFFF],
+		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF],
+		sdata[sid][xymap[y2][x2].y][xymap[y2][x2].z],
+		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z]);
+
+			
+
+
+
+	//printf("%08x %08x %08x %08x\n",sdata[0][100][100],q2,q3,q4 );
 	//val =  argb_interpolate(&bmap, *(data +pstride*y1 + x1), *(data + pstride*y2 + x1), *(data + pstride*y1 +x2), *(data + (pstride*y2) + x2)); 
 	val =  argb_interpolate(&bmap, q1, q2, q3, q4); 
 
@@ -661,7 +696,7 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
+	create_rotate_matrix(deg_to_rad(0), deg_to_rad(45), rmatrix);
 	wm =  rmatrix * pmatrix;
 
     wm.print();
@@ -684,12 +719,43 @@ int main(){
     	printf("can't open bmap\n");
     	exit(1);
     }
-
-    FILE *frfd = fopen("front.rgb", "rb");
+// Sources
+    FILE *frfd = fopen("./cube/front.rgba", "rb");
     if (frfd==NULL){
     	printf("can't open front\n");
     	exit(1);
     }
+
+    FILE *leftfd = fopen("./cube/left.rgba", "rb");
+    if (leftfd==NULL){
+    	printf("can't open left\n");
+    	exit(1);
+    }
+
+    FILE *rightfd = fopen("./cube/right.rgba", "rb");
+    if (rightfd==NULL){
+    	printf("can't open right\n");
+    	exit(1);
+    }
+
+    FILE *backfd = fopen("./cube/back.rgba", "rb");
+    if (backfd==NULL){
+    	printf("can't open back\n");
+    	exit(1);
+    }
+
+    FILE *topfd = fopen("./cube/top.rgba", "rb");
+    if (topfd==NULL){
+    	printf("can't open top\n");
+    	exit(1);
+    }
+
+    FILE *bottomfd = fopen("./cube/bottom.rgba", "rb");
+    if (bottomfd==NULL){
+    	printf("can't open back\n");
+    	exit(1);
+    }
+
 
 	FILE *planefd = fopen("plane.rgb", "wb+");
 	if (planefd==NULL){
@@ -700,7 +766,14 @@ int main(){
 	//fread(pano, 4, OUT_X*OUT_Y,panofd);
 	fread(xymap, sizeof(struct int4), OUT_X*OUT_Y, xymapfd);
 	fread(bmapg, sizeof(struct float4), OUT_Y*OUT_X, bmapfd);
-	fread(&sdata[0], 4, 1200*1200, frfd);
+	fread(&sdata[0], 4, 1200*1200, rightfd);
+	fread(&sdata[1], 4, 1200*1200, frfd);
+	fread(&sdata[2], 4, 1200*1200, leftfd);
+	fread(&sdata[3], 4, 1200*1200, backfd);
+	fread(&sdata[4], 4, 1200*1200, topfd);
+	fread(&sdata[5], 4, 1200*1200, bottomfd);
+	
+
 
 	float nv_wm[9];
 	float nv_invec[3], nv_outvec[3];
