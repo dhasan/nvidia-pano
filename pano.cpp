@@ -14,8 +14,8 @@
 #define FOV_X		(90)
 #define FOV_Y		(90)
 
-//#define RADIUS		(1)
-#define RADIUS		(OUT_X/(2*datum::pi))
+#define RADIUS		(1)
+//#define RADIUS		(OUT_X/(2*datum::pi))
 
 unsigned int sdata[6][1200][1200];
 
@@ -319,13 +319,13 @@ struct plane {
 };
 
 struct int4 {
-	 int x;
-	 int y;
-	 int z;
-	 int w;
+	 unsigned int x;
+	 unsigned int y;
+	 unsigned int z;
+	 unsigned int w;
 };
 
-//unsigned int pano[OUT_Y][OUT_X];
+unsigned int pano[OUT_Y][OUT_X];
 struct int4 xymap[OUT_Y][OUT_X];
 //unsigned int bmap[OUT_Y][OUT_X];
 
@@ -455,6 +455,10 @@ void create_project_matrix(mat& outplane, mat& inputplane, mat& pmatrix){
     	<< inputplane(0) + inputplane(2) 	<< 	inputplane(1) 					<< 1 << endr
     	<< inputplane(0) + inputplane(2) 	<< inputplane(1) + inputplane(3) 	<< 1 << endr;
   
+    printf("outplane:\n");
+    outplane.print();
+    printf("inputplane:\n");
+    inputplane.print();
 
     vec p1;
     p1  << outplane(0,0) << endr
@@ -513,8 +517,11 @@ void create_rotate_matrix(float theta, float phi, mat& rmatrix){
 
 
 unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
+	
+#if 0
 	unsigned int temp;
 	//static int s=0;
+	//return q1;
 	unsigned char r1,g1,b1,a1;
 	unsigned char r2,g2,b2,a2;
 	unsigned char r3,g3,b3,a3;
@@ -552,6 +559,49 @@ unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int 
 	temp |= ((rr<<16) | (gg<<8) | (bb<<0));
 	
 	return temp;
+#endif
+	unsigned char a1 = (unsigned char)((q1 & 0xFF000000) >> 24);
+	unsigned char a2 = (unsigned char)((q2 & 0xFF000000) >> 24);
+	unsigned char a3 = (unsigned char)((q3 & 0xFF000000) >> 24);
+	unsigned char a4 = (unsigned char)((q4 & 0xFF000000) >> 24);
+
+	unsigned char r1 = (unsigned char)((q1 & 0x00FF0000) >> 16);
+	unsigned char r2 = (unsigned char)((q2 & 0x00FF0000) >> 16);
+	unsigned char r3 = (unsigned char)((q3 & 0x00FF0000) >> 16);
+	unsigned char r4 = (unsigned char)((q4 & 0x00FF0000) >> 16);
+
+	unsigned char g1 = (unsigned char)((q1 & 0x0000FF00) >> 8);
+	unsigned char g2 = (unsigned char)((q2 & 0x0000FF00) >> 8);
+	unsigned char g3 = (unsigned char)((q3 & 0x0000FF00) >> 8);
+	unsigned char g4 = (unsigned char)((q4 & 0x0000FF00) >> 8);
+
+	unsigned char b1 = (unsigned char)((q1 & 0x000000FF) >> 0);
+	unsigned char b2 = (unsigned char)((q2 & 0x000000FF) >> 0);
+	unsigned char b3 = (unsigned char)((q3 & 0x000000FF) >> 0);
+	unsigned char b4 = (unsigned char)((q4 & 0x000000FF) >> 0);
+
+	unsigned char a = 	floor((vec->x * (float)a1 +
+						vec->y * (float)a2 +
+						vec->z * (float)a3 +
+						vec->w * (float)a4));
+
+	unsigned char r = 	floor((vec->x * (float)r1 +
+						vec->y * (float)r2 +
+						vec->z * (float)r3 +
+						vec->w * (float)r4));
+
+	unsigned char g = 	floor((vec->x * (float)g1 +
+						vec->y * (float)g2 +
+						vec->z * (float)g3 +
+						vec->w * (float)g4));
+
+	unsigned char b = 	floor((vec->x * (float)b1 +
+						vec->y * (float)b2 +
+						vec->z * (float)b3 +
+						vec->w * (float)b4));
+
+	unsigned int ret = (a << 24) | (r << 16) | (g << 8) | (b << 0);
+	return ret;
 }
 
 unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstride){
@@ -608,6 +658,8 @@ unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstr
 
 
 	int sid = xymap[y1][x1].x >> 16;
+	if (sid>8)
+	printf("sid: %08x\n",xymap[y1][x1].x );
 //	int sid = 0;
 
 	unsigned int q1y1 = xymap[y1][x1].y;
@@ -643,37 +695,101 @@ unsigned int interpolate(float x, float y, unsigned int *data, unsigned int pstr
 	// 		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z] * bmapg[xymap[y2][x1].w][xymap[y2][x2].z].w;// +
 
 	
-	unsigned int q1 = argb_interpolate(&bmapg[xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF],
-			sdata[sid][q1y1][q1x1],
-			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF],
-			sdata[sid][xymap[y1][x1].y][xymap[y1][x1].z],
-			sdata[sid][xymap[y1][x1].w][xymap[y1][x1].z]);
-	unsigned int q2 = argb_interpolate(&bmapg[xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF],
-		sdata[sid][xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF],
-		sdata[sid][xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF],
-		sdata[sid][xymap[y2][x1].y][xymap[y2][x1].z],
-		sdata[sid][xymap[y2][x1].w][xymap[y2][x1].z]);
-	unsigned int q3 = argb_interpolate(&bmapg[xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF],
-		sdata[sid][xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF],
-		sdata[sid][xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF],
-		sdata[sid][xymap[y1][x2].y][xymap[y1][x2].z],
-		sdata[sid][xymap[y1][x2].w][xymap[y1][x2].z]);
-	unsigned int q4 = argb_interpolate(&bmapg[xymap[y1][x2].y][xymap[y2][x2].x & 0x0000FFFF],
-		sdata[sid][xymap[y2][x2].y][xymap[y2][x2].x & 0x0000FFFF],
-		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF],
-		sdata[sid][xymap[y2][x2].y][xymap[y2][x2].z],
-		sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z]);
+	// unsigned int q1 = argb_interpolate(&bmapg[xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF],
+	// 		sdata[sid][q1y1][q1x1],
+	// 		sdata[sid][xymap[y1][x1].w][xymap[y1][x1].x & 0x0000FFFF],
+	// 		sdata[sid][xymap[y1][x1].y][xymap[y1][x1].z],
+	// 		sdata[sid][xymap[y1][x1].w][xymap[y1][x1].z]);
+	// unsigned int q2 = argb_interpolate(&bmapg[xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y2][x1].y][xymap[y2][x1].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y2][x1].w][xymap[y2][x1].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y2][x1].y][xymap[y2][x1].z],
+	// 	sdata[sid][xymap[y2][x1].w][xymap[y2][x1].z]);
+	// unsigned int q3 = argb_interpolate(&bmapg[xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y1][x2].y][xymap[y1][x2].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y1][x2].w][xymap[y1][x2].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y1][x2].y][xymap[y1][x2].z],
+	// 	sdata[sid][xymap[y1][x2].w][xymap[y1][x2].z]);
+	// unsigned int q4 = argb_interpolate(&bmapg[xymap[y1][x2].y][xymap[y2][x2].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y2][x2].y][xymap[y2][x2].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y2][x2].w][xymap[y2][x2].x & 0x0000FFFF],
+	// 	sdata[sid][xymap[y2][x2].y][xymap[y2][x2].z],
+	// 	sdata[sid][xymap[y2][x2].w][xymap[y2][x2].z]);
 
 			
 
 
 
 	//printf("%08x %08x %08x %08x\n",sdata[0][100][100],q2,q3,q4 );
-	//val =  argb_interpolate(&bmap, *(data +pstride*y1 + x1), *(data + pstride*y2 + x1), *(data + pstride*y1 +x2), *(data + (pstride*y2) + x2)); 
-	val =  argb_interpolate(&bmap, q1, q2, q3, q4); 
+	
+
+	// val =  argb_interpolate(&bmap, 	*(data + pstride*y1 + x1), 
+	// 							   	*(data + pstride*y2 + x1),
+	// 							   	*(data + pstride*y1 + x2),
+	// 							   	*(data + pstride*y2 + x2)); 
+
+	val =  argb_interpolate(&bmap, 	*(data + 0), 
+								   	*(data + 1),
+								   	*(data + 2),
+								   	*(data + 3)); 
+	
+
+	//val =  argb_interpolate(&bmap, q1, q2, q3, q4); 
 
 	return val;
 }	
+
+
+
+
+unsigned int interpolate4(float *betas, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4){
+
+	unsigned char a1 = (unsigned char)((q1 & 0xFF000000) >> 24);
+	unsigned char a2 = (unsigned char)((q2 & 0xFF000000) >> 24);
+	unsigned char a3 = (unsigned char)((q3 & 0xFF000000) >> 24);
+	unsigned char a4 = (unsigned char)((q4 & 0xFF000000) >> 24);
+
+	unsigned char r1 = (unsigned char)((q1 & 0x00FF0000) >> 16);
+	unsigned char r2 = (unsigned char)((q2 & 0x00FF0000) >> 16);
+	unsigned char r3 = (unsigned char)((q3 & 0x00FF0000) >> 16);
+	unsigned char r4 = (unsigned char)((q4 & 0x00FF0000) >> 16);
+
+	unsigned char g1 = (unsigned char)((q1 & 0x0000FF00) >> 8);
+	unsigned char g2 = (unsigned char)((q2 & 0x0000FF00) >> 8);
+	unsigned char g3 = (unsigned char)((q3 & 0x0000FF00) >> 8);
+	unsigned char g4 = (unsigned char)((q4 & 0x0000FF00) >> 8);
+
+	unsigned char b1 = (unsigned char)((q1 & 0x000000FF) >> 0);
+	unsigned char b2 = (unsigned char)((q2 & 0x000000FF) >> 0);
+	unsigned char b3 = (unsigned char)((q3 & 0x000000FF) >> 0);
+	unsigned char b4 = (unsigned char)((q4 & 0x000000FF) >> 0);
+
+	unsigned char a = 	floor((betas[0] * (float)a1 +
+						betas[1] * (float)a2 +
+						betas[2] * (float)a3 +
+						betas[3] * (float)a4));
+
+	unsigned char r = 	floor((betas[0] * (float)r1 +
+						betas[1] * (float)r2 +
+						betas[2] * (float)r3 +
+						betas[3] * (float)r4));
+
+	unsigned char g = 	floor((betas[0] * (float)g1 +
+						betas[1] * (float)g2 +
+						betas[2] * (float)g3 +
+						betas[3] * (float)g4));
+
+	unsigned char b = 	floor((betas[0] * (float)b1 +
+						betas[1] * (float)b2 +
+						betas[2] * (float)b3 +
+						betas[3] * (float)b4));
+
+	unsigned int ret = (a << 24) | (r << 16) | (g << 8) | (b << 0);
+	return ret;
+}
+
+
+
 
 int main(){
 	int ii,jj;
@@ -696,17 +812,17 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(0), deg_to_rad(45), rmatrix);
+	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
 	wm =  rmatrix * pmatrix;
 
     wm.print();
    
 
-	// FILE *panofd = fopen("e1s.rgba","rb");
-	// if (panofd==NULL){
-	// 	printf("can't open pano file\n");
-	// 	exit(1);
-	// }
+	FILE *panofd = fopen("out3.raw","rb");
+	if (panofd==NULL){
+		printf("can't open pano file\n");
+		exit(1);
+	}
 
     FILE *xymapfd = fopen("xymap.bin", "rb");
     if (xymapfd == NULL){
@@ -763,7 +879,7 @@ int main(){
 		exit(1);
 	}
 
-	//fread(pano, 4, OUT_X*OUT_Y,panofd);
+	fread(pano, 4, OUT_X*OUT_Y,panofd);
 	fread(xymap, sizeof(struct int4), OUT_X*OUT_Y, xymapfd);
 	fread(bmapg, sizeof(struct float4), OUT_Y*OUT_X, bmapfd);
 	fread(&sdata[0], 4, 1200*1200, rightfd);
@@ -773,7 +889,19 @@ int main(){
 	fread(&sdata[4], 4, 1200*1200, topfd);
 	fread(&sdata[5], 4, 1200*1200, bottomfd);
 	
+	fflush(rightfd);
+	fflush(frfd);
+	fflush(leftfd);
+	fflush(backfd);
+	fflush(topfd);
+	fflush(bottomfd);
 
+	fclose(rightfd);
+	fclose(frfd);
+	fclose(leftfd);
+	fclose(backfd);
+	fclose(topfd);
+	fclose(bottomfd);
 
 	float nv_wm[9];
 	float nv_invec[3], nv_outvec[3];
@@ -825,8 +953,74 @@ int main(){
 
 			jff = phi_to_j(sp.y);
 			iff = theta_to_i(sp.x);
+			int jffr = round(jff);
+			int iffr = round(iff);
 
-			plane[jj][ii] = interpolate(iff, jff, NULL,OUT_X );
+			unsigned int sid = xymap[jffr][iffr].x >> 16;
+
+			unsigned int x1 = xymap[(int)floor(jff)][(int)floor(iffr)].x & 0x0000FFFF;
+			unsigned int x2 = xymap[(int)floor(jff)][(int)floor(iffr)].y;
+			unsigned int y1 = xymap[(int)floor(jff)][(int)floor(iffr)].z;
+			unsigned int y2 = xymap[(int)floor(jff)][(int)floor(iffr)].w;
+
+			float betas[4];
+			betas[0] = bmapg[(int)floor(jff)][(int)floor(iffr)].x;
+			betas[1] = bmapg[(int)floor(jff)][(int)floor(iffr)].y;
+			betas[2] = bmapg[(int)floor(jff)][(int)floor(iffr)].z;
+			betas[3] = bmapg[(int)floor(jff)][(int)floor(iffr)].w;
+			unsigned int *pptr = &sdata[sid][0][0];
+
+			unsigned int q1 =interpolate4(betas, 	sdata[sid][y1][x1], sdata[sid][y1][x2], sdata[sid][y2][x1],sdata[sid][y2][x2]	); 
+				
+
+			x1 = xymap[(int)ceil(jff)][(int)floor(iffr)].x & 0x0000FFFF;
+			x2 = xymap[(int)ceil(jff)][(int)floor(iffr)].y;
+			y1 = xymap[(int)ceil(jff)][(int)floor(iffr)].z;
+			y2 = xymap[(int)ceil(jff)][(int)floor(iffr)].w;
+
+			
+			betas[0] = bmapg[(int)ceil(jff)][(int)floor(iffr)].x;
+			betas[1] = bmapg[(int)ceil(jff)][(int)floor(iffr)].y;
+			betas[2] = bmapg[(int)ceil(jff)][(int)floor(iffr)].z;
+			betas[3] = bmapg[(int)ceil(jff)][(int)floor(iffr)].w;
+
+			unsigned int q2 = interpolate4(betas, sdata[sid][y1][x1], sdata[sid][y1][x2], sdata[sid][y2][x1],sdata[sid][y2][x2]);
+
+			x1 = xymap[(int)floor(jff)][(int)ceil(iffr)].x & 0x0000FFFF;
+			x2 = xymap[(int)floor(jff)][(int)ceil(iffr)].y;
+			y1 = xymap[(int)floor(jff)][(int)ceil(iffr)].z;
+			y2 = xymap[(int)floor(jff)][(int)ceil(iffr)].w;
+
+			
+			betas[0] = bmapg[(int)floor(jff)][(int)ceil(iffr)].x;
+			betas[1] = bmapg[(int)floor(jff)][(int)ceil(iffr)].y;
+			betas[2] = bmapg[(int)floor(jff)][(int)ceil(iffr)].z;
+			betas[3] = bmapg[(int)floor(jff)][(int)ceil(iffr)].w;
+
+			unsigned int q3 = interpolate4(betas, sdata[sid][y1][x1], sdata[sid][y1][x2], sdata[sid][y2][x1],sdata[sid][y2][x2]);
+
+			x1 = xymap[(int)ceil(jff)][(int)ceil(iffr)].x & 0x0000FFFF;
+			x2 = xymap[(int)ceil(jff)][(int)ceil(iffr)].y;
+			y1 = xymap[(int)ceil(jff)][(int)ceil(iffr)].z;
+			y2 = xymap[(int)ceil(jff)][(int)ceil(iffr)].w;
+
+			
+			betas[0] = bmapg[(int)ceil(jff)][(int)ceil(iffr)].x;
+			betas[1] = bmapg[(int)ceil(jff)][(int)ceil(iffr)].y;
+			betas[2] = bmapg[(int)ceil(jff)][(int)ceil(iffr)].z;
+			betas[3] = bmapg[(int)ceil(jff)][(int)ceil(iffr)].w;
+
+			unsigned int q4 = interpolate4(betas, sdata[sid][y1][x1], sdata[sid][y1][x2], sdata[sid][y2][x1],sdata[sid][y2][x2]);
+
+
+			unsigned int qs[4];
+			qs[0] = q1;
+			qs[1] = q2;
+			qs[2] = q3;
+			qs[3] = q4;
+			plane[jj][ii] = interpolate(iff, jff, qs,1200 );
+		
+
 		}
 	
 	}
