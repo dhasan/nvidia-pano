@@ -5,6 +5,9 @@
 #define 	OUT_X				(3600)
 #define 	OUT_Y				(1800)
 
+#define 	SOURCE_Y 			(1200)
+#define 	SOURCE_X 			(1200)
+
 #define DEST_X 	(640)
 #define DEST_Y	(640)
 
@@ -606,15 +609,24 @@ unsigned int interpolate(float x, float y, unsigned int q1, unsigned int q2, uns
 	return val;
 }	
 unsigned int dotsmultiply(int y, int x){
-	unsigned int sid = xymap[y][x].x >> 16;
-
-	unsigned int x1 = xymap[y][x].x & 0x0000FFFF;
-	unsigned int x2 = xymap[y][x].y;
-	unsigned int y1 = xymap[y][x].z;
-	unsigned int y2 = xymap[y][x].w;
-
-	unsigned int q =argb_interpolate(&bmapg[y][x], 	sdata[sid][y1][x1], sdata[sid][y1][x2], sdata[sid][y2][x1],sdata[sid][y2][x2]	); 
+	int4 *xymappt = &xymap[0][0];
+	struct float4 *bmappt = &bmapg[0][0];
+	unsigned int *sdatapt = &sdata[sid][0][0];
 	
+	xymappt += (y*OUT_X + x);
+
+	unsigned int sid = xymappt->x >> 16;
+	unsigned int x1 = xymappt->x & 0x0000FFFF;
+	unsigned int x2 = xymappt->y;
+	unsigned int y1 = xymappt->z;
+	unsigned int y2 = xymappt->w;
+
+	unsigned int q =argb_interpolate(bmappt + y*OUT_X + x, 	
+									 *(sdatapt + SOURCE_X*y1 + x1),
+									 *(sdatapt + SOURCE_X*y2 + x1), 
+									 *(sdatapt + SOURCE_X*y1 + x2),
+									 *(sdatapt + SOURCE_X*y2 + x2)	); 
+
 	return q;
 }
 
@@ -639,7 +651,7 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(0), deg_to_rad(180), rmatrix);
+	create_rotate_matrix(deg_to_rad(90), deg_to_rad(90), rmatrix);
 	wm =  rmatrix * pmatrix;
 
     wm.print();
@@ -738,6 +750,7 @@ int main(){
 	nv_wm[8] = wm(2,2);
 
 	float jff,iff;
+	unsigned int *planept = &plane[0][0];
 	for (jj=0;jj<DEST_Y;jj++){
 		for(ii=0;ii<DEST_X;ii++){
 
@@ -774,14 +787,13 @@ int main(){
 
 			jff = phi_to_j(sp.y);
 			iff = theta_to_i(sp.x);
-		
 
 			unsigned int q1 = dotsmultiply(floor(jff), floor(iff));
 			unsigned int q2 = dotsmultiply(ceil(jff), floor(iff));
 			unsigned int q3 = dotsmultiply(floor(jff), ceil(iff));
 			unsigned int q4 = dotsmultiply(ceil(jff), ceil(iff));
 
-			plane[jj][ii] = interpolate(iff, jff, q1,q2,q3,q4 );
+			*(planept + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
 		}
 	}
 
