@@ -1,5 +1,3 @@
-
-//#include	<armadillo>
 #include 	<fcntl.h>
 #include 	<stdio.h>
 #define 	OUT_X				(3600)
@@ -11,6 +9,8 @@
 #define DEST_X 	(640)
 #define DEST_Y	(640)
 
+#define DEST_RATIO ((float)DEST_X)/((float)DEST_Y)
+
 #define ANGLE_PHI	(0)
 #define ANGLE_THETA	(0)
 
@@ -20,12 +20,10 @@
 #define RADIUS		(1)
 //#define RADIUS		(OUT_X/(2*datum::pi))
 
-unsigned int sdata[6][1200][1200];
+unsigned int *sdata[6];//[1200][1200];
 
 #define MAX(a,b) (a>b)?a:b
 #define MIN(a,b) (a<b)?a:b
-
-//using namespace arma;
 
 #ifndef __CUDACC__ 
 struct float4 {
@@ -138,10 +136,8 @@ double det4x4(double *a){
 
 __device__ bool inverse4x4(double *a, double *b){
 	double det = det4x4(a);
-//	static int s=0;
-	if (det==0.0f){
-//		printf("null%d\n",s++);
 
+	if (det==0.0f){
 		return false;
 	}
 
@@ -269,8 +265,6 @@ void trans3x3(float *data, float *out){
 
 
 __device__ float phi_to_j(float phi){
-	//float j = (float)((((OUT_Y-1)*phi) + (((OUT_Y-1)*datum::pi)/2))/datum::pi);
-//	float pi2 = M_PI/2;
 	float j = (float)(((OUT_Y-1)*phi  +  (OUT_Y-1)*0)/M_PI);
 	return j;
 }
@@ -345,14 +339,11 @@ struct plane {
 
 };
 
-unsigned int pano[OUT_Y][OUT_X];
-struct int4 xymap[OUT_Y][OUT_X];
-//unsigned int bmap[OUT_Y][OUT_X];
+int4 *xymap;
+unsigned int *plane;
+float4 *bmapg;
 
-unsigned int plane[DEST_Y][DEST_X];
-struct float4 bmapg[OUT_Y][OUT_X];
-
-void create_out_plane(float *coord, float fov){
+void create_out_plane(float *coord, float fov, float ratio){
 
 	float3 cart_c;
 
@@ -361,6 +352,8 @@ void create_out_plane(float *coord, float fov){
 
 	float phi_c = deg_to_rad(ANGLE_PHI);
 	float theta_c = deg_to_rad(ANGLE_THETA);
+
+
 
 	float fov2 = fov/2.0;
 
@@ -462,39 +455,24 @@ void create_out_plane(float *coord, float fov){
 	printf("p4 x: %f, y: %f, z: %f\n",cart_4.x,cart_4.y,cart_4.z );
 	printf("center x: %f y: %f z: %f\n",cart_c.x, cart_c.y, cart_c.z );
 	coord[0]=cart_2.x;coord[1]=cart_2.y;coord[2]=cart_2.z;
-	coord[4]=cart_4.x;coord[5]=cart_4.y;coord[6]=cart_4.z;
-	coord[7]=cart_3.x;coord[8]=cart_3.y;coord[9]=cart_3.z;
+	coord[3]=cart_4.x;coord[4]=cart_4.y;coord[5]=cart_4.z;
+	coord[6]=cart_3.x;coord[7]=cart_3.y;coord[8]=cart_3.z;
 }
 
 void create_project_matrix(float *outplane, float *inputplane, float *pmatrix){
 //	int i,j;
 	
     float pa[9];// = mat(3,3);
+    float p1[3];
    
-    // pa 	<< inputplane(0) 					<<	inputplane(1) 					<< 1 << endr
-    // 	<< inputplane(0) + inputplane(2) 	<< 	inputplane(1) 					<< 1 << endr
-    // 	<< inputplane(0) + inputplane(2) 	<< inputplane(1) + inputplane(3) 	<< 1 << endr;
     pa[0] = inputplane[0]; 					pa[1] = inputplane[1]; 					pa[2] = 1;
     pa[3] = inputplane[0] + inputplane[2]; 	pa[4] = inputplane[1]; 					pa[5] = 1;
     pa[6] = inputplane[0] + inputplane[2]; 	pa[7] = inputplane[1] + inputplane[3]; 	pa[8] = 1;
   
-    printf("outplane:\n");
-//    outplane.print();
-    printf("inputplane:\n");
- //   inputplane.print();
-
-    float p1[3];
-    // p1  << outplane(0,0) << endr
-    // 	<< outplane(1,0) << endr
-    // 	<< outplane(2,0) << endr;
-
     p1[0] = outplane[0];
     p1[1] = outplane[3];
     p1[2] = outplane[6];
-    	
 
-    // vec l1;
-    // l1 =inv(pa) * p1;
     float l1[3];
     float invpa[9];
     inverse3x3(pa, invpa);
@@ -504,30 +482,20 @@ void create_project_matrix(float *outplane, float *inputplane, float *pmatrix){
     pmatrix[1] = l1[1];
     pmatrix[2] = l1[2];
 
-
-    // p1  << outplane(0,1) << endr
-    // 	<< outplane(1,1)  << endr
-    // 	<< outplane(2,1)  << endr;
     p1[0] = outplane[1];
     p1[1] = outplane[4];
     p1[2] = outplane[7];
 
-    //l1 = inv(pa) * p1;
     mul3x3x1h(invpa, p1, l1);
 
     pmatrix[3] = l1[0];
     pmatrix[4] = l1[1];
     pmatrix[5] = l1[2];
 
-    // p1  << outplane(0,2) << endr
-    // 	<< outplane(1,2)  << endr
-    // 	<< outplane(2,2)  << endr;
-
     p1[0] = outplane[2];
     p1[1] = outplane[5];
     p1[2] = outplane[8];
 
-    //l1 = inv(pa)*p1;
     mul3x3x1h(invpa, p1, l1);
 
     pmatrix[6] = l1[0];
@@ -537,19 +505,12 @@ void create_project_matrix(float *outplane, float *inputplane, float *pmatrix){
 
 void create_rotate_matrix(float theta, float phi, float *rmatrix){
 
-    float fa[9];// = mat(3,3);
-    float fb[9];// = mat(3,3);
+    float fa[9];
+    float fb[9];
 
-    // fb 	<< 1 		<< 0 			<< 0 			<< endr 
-    // 	<< 0 		<< cos(phi) 	<< -sin(phi) 	<< endr
-    // 	<< 0 		<< sin(phi)		<< cos(phi)		<< endr;
     fb[0] = 1; fb[1] = 0; 			fb[2] = 0;
     fb[3] = 0; fb[4] = cos(phi);	fb[5] = -sin(phi);
     fb[6] = 0; fb[7] = sin(phi);	fb[8] = cos(phi);
-
-    // fa 	<< cos(theta) 	<< -sin(theta) 	<< 0 <<endr
-    // 	<< sin(theta) 	<<  cos(theta) 	<< 0 <<endr
-    // 	<< 0 			<< 	0 			<< 1 <<endr;
 
     fa[0] = cos(theta); fa[1] = -sin(theta); 	fa[2] = 0;
     fa[3] = sin(theta); fa[4] = cos(theta); 	fa[5] = 0;
@@ -561,7 +522,13 @@ void create_rotate_matrix(float theta, float phi, float *rmatrix){
 }
 
 
-__device__ unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
+__device__ unsigned int argb_interpolate(struct float4 *gvec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
+
+	float4 vec;
+	vec.x = gvec->x;
+	vec.y = gvec->y;
+	vec.z = gvec->z;
+	vec.w = gvec->w;
 
 	unsigned char a1 = (unsigned char)((q1 & 0xFF000000) >> 24);
 	unsigned char a2 = (unsigned char)((q2 & 0xFF000000) >> 24);
@@ -583,25 +550,25 @@ __device__ unsigned int argb_interpolate(struct float4 *vec, unsigned int q1, un
 	unsigned char b3 = (unsigned char)((q3 & 0x000000FF) >> 0);
 	unsigned char b4 = (unsigned char)((q4 & 0x000000FF) >> 0);
 
-	unsigned char a = 	floor((vec->x * (float)a1 +
-						vec->y * (float)a2 +
-						vec->z * (float)a3 +
-						vec->w * (float)a4));
+	unsigned char a = 	floor((vec.x * (float)a1 +
+						vec.y * (float)a2 +
+						vec.z * (float)a3 +
+						vec.w * (float)a4));
 
-	unsigned char r = 	floor((vec->x * (float)r1 +
-						vec->y * (float)r2 +
-						vec->z * (float)r3 +
-						vec->w * (float)r4));
+	unsigned char r = 	floor((vec.x * (float)r1 +
+						vec.y * (float)r2 +
+						vec.z * (float)r3 +
+						vec.w * (float)r4));
 
-	unsigned char g = 	floor((vec->x * (float)g1 +
-						vec->y * (float)g2 +
-						vec->z * (float)g3 +
-						vec->w * (float)g4));
+	unsigned char g = 	floor((vec.x * (float)g1 +
+						vec.y * (float)g2 +
+						vec.z * (float)g3 +
+						vec.w * (float)g4));
 
-	unsigned char b = 	floor((vec->x * (float)b1 +
-						vec->y * (float)b2 +
-						vec->z * (float)b3 +
-						vec->w * (float)b4));
+	unsigned char b = 	floor((vec.x * (float)b1 +
+						vec.y * (float)b2 +
+						vec.z * (float)b3 +
+						vec.w * (float)b4));
 
 	unsigned int ret = (a << 24) | (r << 16) | (g << 8) | (b << 0);
 	return ret;
@@ -647,10 +614,10 @@ __device__ unsigned int interpolate(float x, float y, unsigned int q1, unsigned 
 		bmap.z = nv_b[2];
 		bmap.w = nv_b[3];
 	}else{
-		bmap.x = 1.0f;
-		bmap.y = 0;
-		bmap.z = 0;
-		bmap.w = 0;
+		bmap.x = 0.25f;
+		bmap.y = 0.25f;
+		bmap.z = 0.25f;
+		bmap.w = 0.25f;
 	}
 
 	val =  argb_interpolate(&bmap, q1,q2,q3,q4); 
@@ -658,10 +625,7 @@ __device__ unsigned int interpolate(float x, float y, unsigned int q1, unsigned 
 	return val;
 }	
 __device__ unsigned int dotsmultiply(int4 *xymappt, float4 *bmappt, unsigned int **sources, int y, int x){
-	// struct int4 *xymappt = &xymap[0][0];
-	// struct float4 *bmappt = &bmapg[0][0];
-	
-	
+
 	xymappt += (y*OUT_X + x);
 
 	unsigned int sid = xymappt->x >> 16;
@@ -746,23 +710,16 @@ __global__ void create_pano(float *dev_wm, int4 *dev_xymap, float4 *dev_bmap, 	u
 }
 
 int main(){
-//	int ii,jj;
-    int i;//,j;
-    //vec invec,outvec;
-	//float3 cr,sp;
 
-	float outplane[9];// = mat(4,3);
-	float pmatrix[9];// = mat(3,3);
-	float rmatrix[9];// = mat(3,3);
-	float nv_wm[9];//float wm[9];// = mat(3,3);
-	float inputplane[4];// = vec(4);
+    int i;
+
+	float outplane[9];
+	float pmatrix[9];
+	float rmatrix[9];
+	float nv_wm[9];
+	float inputplane[4];
 	
-	create_out_plane(outplane, deg_to_rad(120));
-
-	// inputplane	<< 0 << endr //x1 - upper left corner
-	// 			<< 0 << endr //y1 - upper left corner
-	// 			<< DEST_X << endr //x size
-	// 			<< DEST_Y << endr; //y size
+	create_out_plane(outplane, deg_to_rad(120), DEST_RATIO);
 
 	inputplane[0] = 0;
 	inputplane[1] = 0;
@@ -771,11 +728,9 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(90), deg_to_rad(90), rmatrix);
-	//wm =  rmatrix * pmatrix;
-	mul3x3x3(rmatrix,pmatrix, nv_wm);
-   // wm.print();
+	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
 
+	mul3x3x3(rmatrix,pmatrix, nv_wm);
 
     FILE *xymapfd = fopen("xymap.bin", "rb");
     if (xymapfd == NULL){
@@ -831,17 +786,26 @@ int main(){
 		printf("cant create output file\n");
 		exit(1);
 	}
-
-	//fread(pano, 4, OUT_X*OUT_Y,panofd);
-	fread(xymap, sizeof(struct int4), OUT_X*OUT_Y, xymapfd);
-	fread(bmapg, sizeof(struct float4), OUT_Y*OUT_X, bmapfd);
-	fread(&sdata[0], 4, 1200*1200, rightfd);
-	fread(&sdata[1], 4, 1200*1200, frfd);
-	fread(&sdata[2], 4, 1200*1200, leftfd);
-	fread(&sdata[3], 4, 1200*1200, backfd);
-	fread(&sdata[4], 4, 1200*1200, topfd);
-	fread(&sdata[5], 4, 1200*1200, bottomfd);
 	
+	HANDLE_ERROR(cudaHostAlloc((void**) &xymap, sizeof(int4) * OUT_X*OUT_Y,cudaHostAllocDefault));
+	HANDLE_ERROR(cudaHostAlloc((void**) &bmapg, sizeof(float4) * OUT_X*OUT_Y,cudaHostAllocDefault));
+
+	HANDLE_ERROR(cudaHostAlloc((void**) &plane, 4 * DEST_X*DEST_Y,cudaHostAllocDefault));
+	
+	for(i=0;i<6;i++){
+		HANDLE_ERROR(cudaHostAlloc((void**) &sdata[i], 4 * SOURCE_X*SOURCE_Y,cudaHostAllocDefault));
+	}
+	
+	fread(xymap, sizeof(int4), OUT_X*OUT_Y, xymapfd);
+	fread(bmapg, sizeof(float4), OUT_Y*OUT_X, bmapfd);
+	fread(sdata[0], 4, SOURCE_X*SOURCE_Y, rightfd);
+	
+	fread(sdata[1], 4, SOURCE_X*SOURCE_Y, frfd);
+	fread(sdata[2], 4, SOURCE_X*SOURCE_Y, leftfd);
+	fread(sdata[3], 4, SOURCE_X*SOURCE_Y, backfd);
+	fread(sdata[4], 4, SOURCE_X*SOURCE_Y, topfd);
+	fread(sdata[5], 4, SOURCE_X*SOURCE_Y, bottomfd);
+		
 	fflush(rightfd);
 	fflush(frfd);
 	fflush(leftfd);
@@ -856,47 +820,51 @@ int main(){
 	fclose(topfd);
 	fclose(bottomfd);
 
-	
-//	float nv_invec[3], nv_outvec[3];
-
 	float *dev_nv_wm;
 	int4 *dev_xymap;
 	float4 *dev_bmap;
 	unsigned int *dev_source[6];
 	unsigned int *dev_plane;
-
-	// nv_wm[0] = wm(0,0);
-	// nv_wm[1] = wm(0,1);
-	// nv_wm[2] = wm(0,2);
-	// nv_wm[3] = wm(1,0);
-	// nv_wm[4] = wm(1,1);
-	// nv_wm[5] = wm(1,2);
-	// nv_wm[6] = wm(2,0);
-	// nv_wm[7] = wm(2,1);
-	// nv_wm[8] = wm(2,2);
-
-//	float jff,iff;
-//	unsigned int *planept = &plane[0][0];
 	
     // allocate the memory on the GPU
     HANDLE_ERROR( cudaMalloc( (void**)&dev_nv_wm, sizeof(nv_wm) ) );
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_xymap, sizeof(xymap) ) );
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_bmap, sizeof(bmapg) ) );
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_plane, sizeof(plane) ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_xymap, sizeof(int4)*OUT_X*OUT_Y ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_bmap,  sizeof(float4)*OUT_X*OUT_Y ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_plane, 4*DEST_Y*DEST_X ) );
+
     
     for (i=0;i<6;i++)
-    	HANDLE_ERROR( cudaMalloc( (void**)&dev_source[i], 4 * (1200*1200) ) );
- 
+    	HANDLE_ERROR( cudaMalloc( (void**)&dev_source[i], 4 * (SOURCE_X*SOURCE_Y) ) );
+ 	
+ 	printf("size of nv_wm: %lu\n", sizeof(nv_wm) );
     HANDLE_ERROR( cudaMemcpy( dev_nv_wm, nv_wm, sizeof(nv_wm), cudaMemcpyHostToDevice ) );
-    HANDLE_ERROR( cudaMemcpy( dev_xymap, xymap, sizeof(xymap), cudaMemcpyHostToDevice ) );
-    HANDLE_ERROR( cudaMemcpy( dev_bmap, nv_wm, sizeof(bmapg), cudaMemcpyHostToDevice ) );
+    printf("size of xymap: %lu\n", sizeof(xymap) );
+    HANDLE_ERROR( cudaMemcpy( dev_xymap, xymap, sizeof(int4)*OUT_X*OUT_Y, cudaMemcpyHostToDevice ) );
+    printf("size of bmapg: %lu\n", sizeof(bmapg) );
+    HANDLE_ERROR( cudaMemcpy( dev_bmap, bmapg, sizeof(float4)*OUT_X*OUT_Y, cudaMemcpyHostToDevice ) );
 
-    for(i=0;i<6;i++)
-    	HANDLE_ERROR( cudaMemcpy( dev_source[i], &sdata[i][0][0], 4 * (1200*1200), cudaMemcpyHostToDevice ) );
-    
+cudaEvent_t start1,start2, start3, stop1,stop2,stop3;
+cudaEventCreate(&start1);
+cudaEventCreate(&start2);
+cudaEventCreate(&start3);
+
+
+cudaEventCreate(&stop1);
+cudaEventCreate(&stop2);
+cudaEventCreate(&stop3);
+int il;
+for(il=0;il<20;il++){
+
+cudaEventRecord(start1);
+    for(i=0;i<6;i++){
+       	HANDLE_ERROR( cudaMemcpy( dev_source[i], sdata[i], 4*SOURCE_X*SOURCE_Y, cudaMemcpyHostToDevice ) );
+    }
+        
+    cudaEventRecord(stop1);
     dim3 grid(DEST_X/8,DEST_Y/8);
     dim3 block(8,8);
 
+    cudaEventRecord(start2);
     create_pano<<<grid,block>>>(	dev_nv_wm,
     							dev_xymap,
     							dev_bmap,
@@ -908,54 +876,29 @@ int main(){
     							dev_source[5],
     							dev_plane
     							);
+    cudaEventRecord(stop2);
 
-#if 0
-	for (jj=0;jj<DEST_Y;jj++){
-		for(ii=0;ii<DEST_X;ii++){
+    cudaEventRecord(start3);
+    HANDLE_ERROR(cudaMemcpy( plane, dev_plane, 4*DEST_Y*DEST_X, cudaMemcpyDeviceToHost )); 
+    cudaEventRecord(stop3);
+   
 
-			nv_invec[0] = (float)ii;
-			nv_invec[1] = (float)jj;
-			nv_invec[2] = (float)1;
-			
-			mul3x3x1(nv_wm, nv_invec, nv_outvec);
+cudaEventSynchronize(stop1);
+float milliseconds = 0;
+cudaEventElapsedTime(&milliseconds, start1, stop1);
+printf("sources copy time: %f\n",milliseconds );
 
-			cr.x = nv_outvec[0];
-			cr.y = nv_outvec[1];
-			cr.z = nv_outvec[2];
+cudaEventSynchronize(stop2);
+float milliseconds2 = 0;
+cudaEventElapsedTime(&milliseconds2, start2, stop2);
+printf("kernel execution time: %f\n",milliseconds2 );
 
-			cart_to_sphere(&cr, &sp);
+cudaEventSynchronize(stop3);
+float milliseconds3 = 0;
+cudaEventElapsedTime(&milliseconds3, start3, stop3);
+printf("result copy time: %f\n",milliseconds3 );
 
-			if (sp.y<0){
-				sp.y *= -1;
-				if (sp.x<datum::pi)
-					sp.x +=datum::pi;
-				else
-					sp.x -=datum::pi;
-			}else if (sp.y>datum::pi){
-				sp.y = datum::pi - (sp.y - datum::pi);
-				if (sp.x<datum::pi)
-					sp.x +=datum::pi;
-				else
-					sp.x -=datum::pi;
-			}
-
-			if (sp.x<0){
-				sp.x = (2*datum::pi) + sp.x;
-			}else if (sp.x>(2*datum::pi))
-				sp.x = sp.x - (2*datum::pi);
-
-			jff = phi_to_j(sp.y);
-			iff = theta_to_i(sp.x);
-
-			unsigned int q1 = dotsmultiply(floor(jff), floor(iff));
-			unsigned int q2 = dotsmultiply(ceil(jff), floor(iff));
-			unsigned int q3 = dotsmultiply(floor(jff), ceil(iff));
-			unsigned int q4 = dotsmultiply(ceil(jff), ceil(iff));
-
-			*(planept + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
-		}
-	}
-	#endif
+}
 
 	fwrite(plane, DEST_Y*DEST_X,4,planefd);
 	fflush(planefd);
