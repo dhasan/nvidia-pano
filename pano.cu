@@ -20,10 +20,51 @@
 #define RADIUS		(1)
 //#define RADIUS		(OUT_X/(2*datum::pi))
 
-unsigned int *sdata[6];//[1200][1200];
+//[1200][1200];
 
 #define MAX(a,b) (a>b)?a:b
 #define MIN(a,b) (a<b)?a:b
+
+struct dev {
+	float *matrix;
+	uint4 *xymap;
+	float4 *bmap;
+	unsigned int *sdata[6];
+	unsigned int *panodata;
+};
+
+struct pano {
+
+	unsigned int pano_width;
+	unsigned int pano_height;
+
+	float theta;
+	float phi;
+	float fov;
+	float matrix[9];
+
+	unsigned int source_width;
+	unsigned int source_height;
+
+	FILE *sdatafd[6];
+	unsigned int *sdata[6];
+
+	FILE *xymapfd;
+	uint4 *xymap;
+
+	FILE *bmapfd;
+	float4 *bmap;
+
+	unsigned int dest_width;
+	unsigned int dest_height;
+	//float dest_ratio;
+
+	unsigned int *panodata;
+
+	struct dev dev;
+
+
+};
 
 #ifndef __CUDACC__ 
 struct float4 {
@@ -353,21 +394,28 @@ void create_out_plane(float *coord, float fov, float ratio){
 	float phi_c = deg_to_rad(ANGLE_PHI);
 	float theta_c = deg_to_rad(ANGLE_THETA);
 
+	float x,y,x2,y2;
 
+	y = fov/sqrt((ratio*ratio) + 1);
+	x = ratio*y;
+	x2 = x/2.0;
+	y2 = y/2.0;
 
-	float fov2 = fov/2.0;
+	printf("x2: %f y2 %f\n",x2,y2 );
 
-	float phi_1 =		phi_c 	- 	fov2;
-	float theta_1 = 	theta_c	+	fov2;
+	//float fov2 = fov/2.0;
 
-	float phi_2 = phi_c - fov2;
-	float theta_2 = theta_c - fov2;
+	float phi_1 =		phi_c 	- 	y2;
+	float theta_1 = 	theta_c	+	x2;
 
-	float phi_3 = phi_c + fov2;
-	float theta_3 = theta_c - fov2;
+	float phi_2 = phi_c - y2;
+	float theta_2 = theta_c - x2;
 
-	float phi_4 = phi_c + fov2;
-	float theta_4 = theta_c + fov2;
+	float phi_3 = phi_c + y2;
+	float theta_3 = theta_c - x2;
+
+	float phi_4 = phi_c + y2;
+	float theta_4 = theta_c + x2;
 
 	sph_t.x = theta_1;
 	sph_t.y = phi_1;
@@ -624,7 +672,7 @@ __device__ unsigned int interpolate(float x, float y, unsigned int q1, unsigned 
 
 	return val;
 }	
-__device__ unsigned int dotsmultiply(int4 *xymappt, float4 *bmappt, unsigned int **sources, int y, int x){
+__device__ unsigned int dotsmultiply(uint4 *xymappt, float4 *bmappt, unsigned int **sources, int y, int x){
 
 	xymappt += (y*OUT_X + x);
 
@@ -645,7 +693,7 @@ __device__ unsigned int dotsmultiply(int4 *xymappt, float4 *bmappt, unsigned int
 	return q;
 }
 
-__global__ void create_pano(float *dev_wm, int4 *dev_xymap, float4 *dev_bmap, 	unsigned int *dev_source0,
+__global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	unsigned int *dev_source0,
 														unsigned int *dev_source1,
 														unsigned int *dev_source2,
 														unsigned int *dev_source3,
@@ -709,17 +757,15 @@ __global__ void create_pano(float *dev_wm, int4 *dev_xymap, float4 *dev_bmap, 	u
 
 }
 
-int main(){
-
-    int i;
-
+void update_matrix(struct pano *pano){
+	static int once = 0;
 	float outplane[9];
 	float pmatrix[9];
 	float rmatrix[9];
-	float nv_wm[9];
+	//float nv_wm[9];
 	float inputplane[4];
 	
-	create_out_plane(outplane, deg_to_rad(120), DEST_RATIO);
+	create_out_plane(outplane, pano->fov, pano->dest_width / pano->dest_height);
 
 	inputplane[0] = 0;
 	inputplane[1] = 0;
@@ -728,185 +774,159 @@ int main(){
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
-	create_rotate_matrix(deg_to_rad(0), deg_to_rad(90), rmatrix);
+	create_rotate_matrix(pano->theta, pano->phi, rmatrix);
 
-	mul3x3x3(rmatrix,pmatrix, nv_wm);
+	mul3x3x3(rmatrix,pmatrix, pano->matrix);
+	if (once==0){
+		//allocate matrix on device
+		HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.matrix, sizeof(pano->matrix) ) );
 
-    FILE *xymapfd = fopen("xymap.bin", "rb");
-    if (xymapfd == NULL){
+		once = 1;
+	}
+	HANDLE_ERROR( cudaMemcpy( pano->dev.matrix, pano->matrix, sizeof(pano->matrix), cudaMemcpyHostToDevice ) );
+}
+
+void open_static_config(struct pano *pano){
+	pano->xymapfd = fopen("xymap.bin", "rb");
+    if (pano->xymapfd == NULL){
     	printf("can't open xymap\n");
     	exit(1);
     }
 
-    FILE *bmapfd = fopen("bmap.bin", "rb");
-    if (bmapfd==NULL){
+    pano->bmapfd = fopen("bmap.bin", "rb");
+    if (pano->bmapfd==NULL){
     	printf("can't open bmap\n");
     	exit(1);
     }
-// Sources
-    FILE *frfd = fopen("./cube/front.rgba", "rb");
-    if (frfd==NULL){
+
+    HANDLE_ERROR(cudaHostAlloc((void**) &pano->xymap, sizeof(uint4) * pano->pano_width*pano->pano_height,cudaHostAllocDefault));
+	HANDLE_ERROR(cudaHostAlloc((void**) &pano->bmap, sizeof(float4) * pano->pano_width*pano->pano_height,cudaHostAllocDefault));
+
+	HANDLE_ERROR(cudaHostAlloc((void**) &pano->panodata, 4 * DEST_X*DEST_Y,cudaHostAllocDefault));
+	HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.panodata, sizeof(uint4)*pano->pano_width*pano->pano_height ) );
+
+	HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.xymap, sizeof(uint4)*pano->pano_width*pano->pano_height ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.bmap,  sizeof(float4)*pano->pano_width*pano->pano_height ) );
+
+	fread(pano->xymap, sizeof(int4), pano->pano_width*pano->pano_height, pano->xymapfd);
+	fread(pano->bmap, sizeof(float4), pano->pano_width*pano->pano_height, pano->bmapfd);
+
+	fflush(pano->xymapfd);
+	fflush(pano->bmapfd);
+
+	HANDLE_ERROR( cudaMemcpy( pano->dev.xymap, pano->xymap, sizeof(uint4)*pano->pano_width*pano->pano_height, cudaMemcpyHostToDevice ) );
+    //printf("size of bmapg: %lu\n", sizeof(bmapg) );
+    HANDLE_ERROR( cudaMemcpy( pano->dev.bmap, pano->bmap, sizeof(float4)*pano->pano_width*pano->pano_height, cudaMemcpyHostToDevice ) );
+
+    fclose(pano->xymapfd);
+    fclose(pano->bmapfd);
+}
+
+void open_sources(struct pano *pano){
+	int i;
+	pano->sdatafd[0] = fopen("./cube/right.rgba", "rb");
+    if (pano->sdatafd[0]==NULL){
     	printf("can't open front\n");
     	exit(1);
     }
 
-    FILE *leftfd = fopen("./cube/left.rgba", "rb");
-    if (leftfd==NULL){
+    pano->sdatafd[1] = fopen("./cube/front.rgba", "rb");
+    if (pano->sdatafd[1]==NULL){
     	printf("can't open left\n");
     	exit(1);
     }
 
-    FILE *rightfd = fopen("./cube/right.rgba", "rb");
-    if (rightfd==NULL){
+    pano->sdatafd[2] = fopen("./cube/left.rgba", "rb");
+    if (pano->sdatafd[2]==NULL){
     	printf("can't open right\n");
     	exit(1);
     }
 
-    FILE *backfd = fopen("./cube/back.rgba", "rb");
-    if (backfd==NULL){
+    pano->sdatafd[3] = fopen("./cube/back.rgba", "rb");
+    if (pano->sdatafd[3]==NULL){
     	printf("can't open back\n");
     	exit(1);
     }
 
-    FILE *topfd = fopen("./cube/top.rgba", "rb");
-    if (topfd==NULL){
+    pano->sdatafd[4] = fopen("./cube/top.rgba", "rb");
+    if (pano->sdatafd[4]==NULL){
     	printf("can't open top\n");
     	exit(1);
     }
 
-    FILE *bottomfd = fopen("./cube/bottom.rgba", "rb");
-    if (bottomfd==NULL){
+    pano->sdatafd[5] = fopen("./cube/bottom.rgba", "rb");
+    if (pano->sdatafd[5]==NULL){
     	printf("can't open back\n");
     	exit(1);
     }
 
-
-	FILE *planefd = fopen("plane.rgb", "wb+");
-	if (planefd==NULL){
-		printf("cant create output file\n");
-		exit(1);
-	}
-	
-	HANDLE_ERROR(cudaHostAlloc((void**) &xymap, sizeof(int4) * OUT_X*OUT_Y,cudaHostAllocDefault));
-	HANDLE_ERROR(cudaHostAlloc((void**) &bmapg, sizeof(float4) * OUT_X*OUT_Y,cudaHostAllocDefault));
-
-	HANDLE_ERROR(cudaHostAlloc((void**) &plane, 4 * DEST_X*DEST_Y,cudaHostAllocDefault));
-	
-	for(i=0;i<6;i++){
-		HANDLE_ERROR(cudaHostAlloc((void**) &sdata[i], 4 * SOURCE_X*SOURCE_Y,cudaHostAllocDefault));
-	}
-	
-	fread(xymap, sizeof(int4), OUT_X*OUT_Y, xymapfd);
-	fread(bmapg, sizeof(float4), OUT_Y*OUT_X, bmapfd);
-	fread(sdata[0], 4, SOURCE_X*SOURCE_Y, rightfd);
-	
-	fread(sdata[1], 4, SOURCE_X*SOURCE_Y, frfd);
-	fread(sdata[2], 4, SOURCE_X*SOURCE_Y, leftfd);
-	fread(sdata[3], 4, SOURCE_X*SOURCE_Y, backfd);
-	fread(sdata[4], 4, SOURCE_X*SOURCE_Y, topfd);
-	fread(sdata[5], 4, SOURCE_X*SOURCE_Y, bottomfd);
-		
-	fflush(rightfd);
-	fflush(frfd);
-	fflush(leftfd);
-	fflush(backfd);
-	fflush(topfd);
-	fflush(bottomfd);
-
-	fclose(rightfd);
-	fclose(frfd);
-	fclose(leftfd);
-	fclose(backfd);
-	fclose(topfd);
-	fclose(bottomfd);
-
-	float *dev_nv_wm;
-	int4 *dev_xymap;
-	float4 *dev_bmap;
-	unsigned int *dev_source[6];
-	unsigned int *dev_plane;
-	
-    // allocate the memory on the GPU
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_nv_wm, sizeof(nv_wm) ) );
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_xymap, sizeof(int4)*OUT_X*OUT_Y ) );
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_bmap,  sizeof(float4)*OUT_X*OUT_Y ) );
-    HANDLE_ERROR( cudaMalloc( (void**)&dev_plane, 4*DEST_Y*DEST_X ) );
-
-    
-    for (i=0;i<6;i++)
-    	HANDLE_ERROR( cudaMalloc( (void**)&dev_source[i], 4 * (SOURCE_X*SOURCE_Y) ) );
- 	
- 	printf("size of nv_wm: %lu\n", sizeof(nv_wm) );
-    HANDLE_ERROR( cudaMemcpy( dev_nv_wm, nv_wm, sizeof(nv_wm), cudaMemcpyHostToDevice ) );
-    printf("size of xymap: %lu\n", sizeof(xymap) );
-    HANDLE_ERROR( cudaMemcpy( dev_xymap, xymap, sizeof(int4)*OUT_X*OUT_Y, cudaMemcpyHostToDevice ) );
-    printf("size of bmapg: %lu\n", sizeof(bmapg) );
-    HANDLE_ERROR( cudaMemcpy( dev_bmap, bmapg, sizeof(float4)*OUT_X*OUT_Y, cudaMemcpyHostToDevice ) );
-
-cudaEvent_t start1,start2, start3, stop1,stop2,stop3;
-cudaEventCreate(&start1);
-cudaEventCreate(&start2);
-cudaEventCreate(&start3);
-
-
-cudaEventCreate(&stop1);
-cudaEventCreate(&stop2);
-cudaEventCreate(&stop3);
-int il;
-for(il=0;il<20;il++){
-
-cudaEventRecord(start1);
     for(i=0;i<6;i++){
-       	HANDLE_ERROR( cudaMemcpy( dev_source[i], sdata[i], 4*SOURCE_X*SOURCE_Y, cudaMemcpyHostToDevice ) );
-    }
-        
-    cudaEventRecord(stop1);
-    dim3 grid(DEST_X/8,DEST_Y/8);
-    dim3 block(8,8);
+		HANDLE_ERROR(cudaHostAlloc((void**) &pano->sdata[i], 4 * pano->source_width*pano->source_height,cudaHostAllocDefault));
+		fread(pano->sdata[i], 4, pano->source_width*pano->source_height, pano->sdatafd[i]);
+		fflush(pano->sdatafd[i]);
+		HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.sdata[i], 4 * (pano->source_width*pano->source_height) ) );
 
-    cudaEventRecord(start2);
-    create_pano<<<grid,block>>>(	dev_nv_wm,
-    							dev_xymap,
-    							dev_bmap,
-    							dev_source[0],
-    							dev_source[1],
-    							dev_source[2],
-    							dev_source[3],
-    							dev_source[4],
-    							dev_source[5],
-    							dev_plane
-    							);
-    cudaEventRecord(stop2);
-
-    cudaEventRecord(start3);
-    HANDLE_ERROR(cudaMemcpy( plane, dev_plane, 4*DEST_Y*DEST_X, cudaMemcpyDeviceToHost )); 
-    cudaEventRecord(stop3);
-   
-
-cudaEventSynchronize(stop1);
-float milliseconds = 0;
-cudaEventElapsedTime(&milliseconds, start1, stop1);
-printf("sources copy time: %f\n",milliseconds );
-
-cudaEventSynchronize(stop2);
-float milliseconds2 = 0;
-cudaEventElapsedTime(&milliseconds2, start2, stop2);
-printf("kernel execution time: %f\n",milliseconds2 );
-
-cudaEventSynchronize(stop3);
-float milliseconds3 = 0;
-cudaEventElapsedTime(&milliseconds3, start3, stop3);
-printf("result copy time: %f\n",milliseconds3 );
-
+       	HANDLE_ERROR( cudaMemcpy( pano->dev.sdata[i], pano->sdata[i], 4*pano->source_width*pano->source_height, cudaMemcpyHostToDevice ) );
+    
+	}
 }
 
-	fwrite(plane, DEST_Y*DEST_X,4,planefd);
-	fflush(planefd);
-	fflush(xymapfd);
-	fflush(bmapfd);
-	fclose(planefd);
-	fclose(xymapfd);
-	fclose(bmapfd);
+void update_sources(struct pano *pano){
+	 int i;
+	 for(i=0;i<6;i++){
+		fread(pano->sdata[i], 4, pano->source_width*pano->source_height, pano->sdatafd[i]);
+		fflush(pano->sdatafd[i]);
+		
+       	HANDLE_ERROR( cudaMemcpy( pano->dev.sdata[i], pano->sdata[i], 4*pano->source_width*pano->source_height, cudaMemcpyHostToDevice ) );
+    
+	}
+}
+
+int main(){
+
+//    int i;
+
+    struct pano panorama;
+    panorama.pano_width = 3600;
+    panorama.pano_height = 1800;
+
+    panorama.source_width = 1200;
+    panorama.source_height = 1200;
+
+    panorama.dest_width = 800;
+    panorama.dest_height = 600;
+
+    panorama.theta = deg_to_rad(0);
+    panorama.phi = deg_to_rad(90);
+    panorama.fov = deg_to_rad(120);
+
+    update_matrix(&panorama);
+    open_static_config(&panorama);
+    open_sources(&panorama);
+    
+    dim3 grid(panorama.dest_width/8,panorama.dest_height/8);
+    dim3 block(8,8);
+
+    
+    create_pano<<<grid,block>>>(	panorama.dev.matrix,
+    							panorama.dev.xymap,
+    							panorama.dev.bmap,
+    							panorama.dev.sdata[0],
+    							panorama.dev.sdata[1],
+    							panorama.dev.sdata[2],
+    							panorama.dev.sdata[3],
+    							panorama.dev.sdata[4],
+    							panorama.dev.sdata[5],
+    							panorama.dev.panodata
+    							);
+
+    HANDLE_ERROR(cudaMemcpy( panorama.panodata, panorama.dev.panodata, 4*DEST_Y*DEST_X, cudaMemcpyDeviceToHost )); 
+
+
+	// fwrite(plane, DEST_Y*DEST_X,4,planefd);
+	// fflush(planefd);
+	// fclose(planefd);
+
 
 }
 
