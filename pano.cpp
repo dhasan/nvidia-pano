@@ -27,6 +27,7 @@ unsigned int sdata[6][1200][1200];
 
 using namespace arma;
 
+#ifndef __CUDACC__ 
 struct float4 {
 	float x;
 	float y;
@@ -40,6 +41,7 @@ struct float3 {
 	float z;
 
 };
+#endif
 
 void mul4x4x4(float *a, float *b, float *out){
 	out[0] = a[0]*b[0] + a[1]*b[4] + a[2]*b[8] + a[3]*b[12];
@@ -67,7 +69,7 @@ void mul4x4x4(float *a, float *b, float *out){
 
 
 
-void mul4x4x1(double *a, double *b, double *out){
+__device__ void mul4x4x1(double *a, double *b, double *out){
 	out[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
 	out[1] = a[4]*b[0] + a[5]*b[1] + a[6]*b[2] + a[7]*b[3];
 	out[2] = a[8]*b[0] + a[9]*b[1] + a[10]*b[2] + a[11]*b[3];
@@ -76,7 +78,7 @@ void mul4x4x1(double *a, double *b, double *out){
 
 
 
-void trans4x4(double *data, double *out){
+__device__ void trans4x4(double *data, double *out){
 	out[0] = data[0];
 	out[1] = data[4];
 	out[2] = data[8];
@@ -113,7 +115,7 @@ double det4x4(double *a){
 	return det;
 }
 
-bool inverse4x4(double *a, double *b){
+__device__ bool inverse4x4(double *a, double *b){
 	double det = det4x4(a);
 //	static int s=0;
 	if (det==0.0f){
@@ -215,7 +217,7 @@ void mul3x3x3(float *a, float *b, float *out){
 	 out[8] = a[6]*b[2] + a[7]*b[5] + a[8]*b[8];
 }
 
-void mul3x3x1(float *a, float *b, float *out){
+__device__ void mul3x3x1(float *a, float *b, float *out){
 
 	out[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
 	out[1] = a[3]*b[0] + a[4]*b[1] + a[5]*b[2];
@@ -237,14 +239,14 @@ void trans3x3(float *data, float *out){
 }
 
 
-float phi_to_j(float phi){
+__device__ float phi_to_j(float phi){
 	//float j = (float)((((OUT_Y-1)*phi) + (((OUT_Y-1)*datum::pi)/2))/datum::pi);
 	float pi2 = datum::pi/2;
 	float j = (float)(((OUT_Y-1)*phi  +  (OUT_Y-1)*0)/datum::pi);
 	return j;
 }
 
-float theta_to_i(float theta){
+__device__ float theta_to_i(float theta){
 	float i = (float)(((((OUT_X-1)*theta)) + ((OUT_X-1)*0))/(2*datum::pi));
 	return i;
 }
@@ -271,7 +273,7 @@ void sphere_to_cart(float3 *sph, float3 *cart){
 	cart->z = z;
 }
 
-void cart_to_sphere(float3 *cart, float3 *sph){
+__device__ void cart_to_sphere(float3 *cart, float3 *sph){
 	float theta;
 	float phi;
 	float r = sqrt((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
@@ -590,7 +592,7 @@ unsigned int interpolate(float x, float y, unsigned int q1, unsigned int q2, uns
 	nv_vals[2] = y;
 	nv_vals[3] = x*y;
 
-	if(inverse4x4(nv_bicubic, nv_inv)){
+	if(inverse4x4(nv_bicubic, nv_inv)__device__ ){
 		trans4x4(nv_inv, nv_transp);
 		mul4x4x1(nv_transp, nv_vals, nv_b);
 		bmap.x = nv_b[0];
@@ -608,14 +610,16 @@ unsigned int interpolate(float x, float y, unsigned int q1, unsigned int q2, uns
 
 	return val;
 }	
-unsigned int dotsmultiply(int y, int x){
-	int4 *xymappt = &xymap[0][0];
-	struct float4 *bmappt = &bmapg[0][0];
-	unsigned int *sdatapt = &sdata[sid][0][0];
+__device__ unsigned int dotsmultiply(int4 *xymappt, float4 *bmappt, unsigned int *sources, int y, int x){
+	// struct int4 *xymappt = &xymap[0][0];
+	// struct float4 *bmappt = &bmapg[0][0];
+	
 	
 	xymappt += (y*OUT_X + x);
 
 	unsigned int sid = xymappt->x >> 16;
+	unsigned int *sdatapt = sources[sid];//&sdata[sid][0][0];
+
 	unsigned int x1 = xymappt->x & 0x0000FFFF;
 	unsigned int x2 = xymappt->y;
 	unsigned int y1 = xymappt->z;
@@ -628,6 +632,80 @@ unsigned int dotsmultiply(int y, int x){
 									 *(sdatapt + SOURCE_X*y2 + x2)	); 
 
 	return q;
+}
+
+(	dev_nv_wm,
+    							dev_xymap,
+    							dev_bmap,
+    							dev_source[0],
+    							dev_source[1],
+    							dev_source[2],
+    							dev_source[3],
+    							dev_source[4],
+    							dev_source[5],
+    							dev_plane
+
+__global__ void create_pano(float *dev_xymap, float4 *dev_bmap, 	unsigned int *dev_source0,
+														unsigned int *dev_source1,
+														unsigned int *dev_source2,
+														unsigned int *dev_source3,
+														unsigned int *dev_source4,
+														unsigned int *dev_source5,
+														unsigned int *dev_plane){
+
+	float nv_invec[3];
+	float nv_outvec[3];
+	unsigned int *sources[6];
+	float3 cr,sp;
+
+	sources[0] = dev_source0;
+	sources[1] = dev_source1;
+	sources[2] = dev_source2;
+	sources[3] = dev_source3;
+	sources[4] = dev_source4;
+	sources[5] = dev_source5;
+
+	int jj = blockIdx.y * blockDim.y + threadIdx.y;
+    int ii = blockIdx.x * blockDim.x + threadIdx.x;
+
+	nv_invec[0] = (float)ii;
+	nv_invec[1] = (float)jj;
+	nv_invec[2] = (float)1;
+	
+	mul3x3x1(nv_wm, nv_invec, nv_outvec);
+
+	cr.x = nv_outvec[0];
+	cr.y = nv_outvec[1];
+	cr.z = nv_outvec[2];
+
+	cart_to_sphere(&cr, &sp);
+	if (sp.y<0){
+		sp.y *= -1;
+		if (sp.x<datum::pi)
+			sp.x +=datum::pi;
+		else
+			sp.x -=datum::pi;
+	}else if (sp.y>datum::pi){
+		sp.y = datum::pi - (sp.y - datum::pi);
+		if (sp.x<datum::pi)
+			sp.x +=datum::pi;
+		else
+			sp.x -=datum::pi;
+	}
+	if (sp.x<0){
+		sp.x = (2*datum::pi) + sp.x;
+	}else if (sp.x>(2*datum::pi))
+		sp.x = sp.x - (2*datum::pi);
+		jff = phi_to_j(sp.y);
+		iff = theta_to_i(sp.x);
+
+		unsigned int q1 = dotsmultiply(dev_xymap, dev_bmap, sources, floor(jff), floor(iff));
+		unsigned int q2 = dotsmultiply(dev_xymap, dev_bmap, sources, ceil(jff), floor(iff));
+		unsigned int q3 = dotsmultiply(dev_xymap, dev_bmap, sources, floor(jff), ceil(iff));
+		unsigned int q4 = dotsmultiply(dev_xymap, dev_bmap, sources, ceil(jff), ceil(iff));
+
+		*(dev_plane + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
+
 }
 
 int main(){
@@ -739,6 +817,12 @@ int main(){
 	float nv_wm[9];
 	float nv_invec[3], nv_outvec[3];
 
+	float *dev_nv_wm;
+	int4 *dev_xymap;
+	float4 *dev_bmap;
+	unsigned int *dev_source[6];
+	unsigned int *dev_plane;
+
 	nv_wm[0] = wm(0,0);
 	nv_wm[1] = wm(0,1);
 	nv_wm[2] = wm(0,2);
@@ -751,6 +835,39 @@ int main(){
 
 	float jff,iff;
 	unsigned int *planept = &plane[0][0];
+	
+    // allocate the memory on the GPU
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_nv_wm, sizeof(nv_wm) ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_xymap, sizeof(xymap) ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_bmap, sizeof(bmapg) ) );
+    HANDLE_ERROR( cudaMalloc( (void**)&dev_plane, sizeof(plane) ) );
+    
+    for (i=0;i<6;i++)
+    	HANDLE_ERROR( cudaMalloc( (void**)&dev_source[i], 4 * (1200*1200) ) );
+ 
+    HANDLE_ERROR( cudaMemcpy( dev_nv_wm, nv_wm, sizeof(nv_wm), cudaMemcpyHostToDevice ) );
+    HANDLE_ERROR( cudaMemcpy( dev_xymap, xymap, sizeof(xymap), cudaMemcpyHostToDevice ) );
+    HANDLE_ERROR( cudaMemcpy( dev_bmap, nv_wm, sizeof(bmapg), cudaMemcpyHostToDevice ) );
+
+    for(i=0;i<6;i++)
+    	HANDLE_ERROR( cudaMemcpy( dev_source[i], &sdata[i][0][0], 4 * (1200*1200), cudaMemcpyHostToDevice ) );
+    
+    dim3 grid(DEST_X/8,DEST_Y/8);
+    dim3 block(8,8);
+
+    create_pano<<<grid,block>>(	dev_nv_wm,
+    							dev_xymap,
+    							dev_bmap,
+    							dev_source[0],
+    							dev_source[1],
+    							dev_source[2],
+    							dev_source[3],
+    							dev_source[4],
+    							dev_source[5],
+    							dev_plane
+    							);
+
+#if 0
 	for (jj=0;jj<DEST_Y;jj++){
 		for(ii=0;ii<DEST_X;ii++){
 
@@ -796,6 +913,7 @@ int main(){
 			*(planept + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
 		}
 	}
+	#endif
 
 	fwrite(plane, DEST_Y*DEST_X,4,planefd);
 	fflush(planefd);
