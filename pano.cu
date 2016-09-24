@@ -3,8 +3,8 @@
 #define 	OUT_X				(3600)
 #define 	OUT_Y				(1800)
 
-#define 	SOURCE_Y 			(1200)
-#define 	SOURCE_X 			(1200)
+#define 	SOURCE_X 			(1920)
+#define 	SOURCE_Y 			(1080)
 
 #define DEST_X 	(640)
 #define DEST_Y	(640)
@@ -677,9 +677,9 @@ __device__ unsigned int interpolate(float x, float y, unsigned int q1, unsigned 
 
 	return val;
 }	
-__device__ unsigned int dotsmultiply(uint4 *xymappt, float4 *bmappt, unsigned int **sources, int y, int x){
+__device__ unsigned int dotsmultiply(uint4 *xymappt1, float4 *bmappt, unsigned int **sources, int y, int x){
 
-	xymappt += (y*OUT_X + x);
+	uint4 *xymappt = xymappt1+ (y*OUT_X + x);
 
 	unsigned int sid = xymappt->x >> 16;
 	unsigned int *sdatapt = sources[sid];//&sdata[sid][0][0];
@@ -688,6 +688,9 @@ __device__ unsigned int dotsmultiply(uint4 *xymappt, float4 *bmappt, unsigned in
 	unsigned int x2 = xymappt->y;
 	unsigned int y1 = xymappt->z;
 	unsigned int y2 = xymappt->w;
+
+	if ((x1>SOURCE_X) || (x2>SOURCE_X) || (y1>SOURCE_Y) || (y2>SOURCE_Y))
+		return 0;
 
 	unsigned int q =argb_interpolate(bmappt + y*OUT_X + x, 	
 									 *(sdatapt + SOURCE_X*y1 + x1),
@@ -855,7 +858,7 @@ void update_matrix(struct pano *pano){
 #ifdef CUDA_PANO_LIB
 void gstcuda_bmap_config(const char *bmapname){
 	gstpano.bmapfd = fopen(bmapname, "rb");
-    if (pano->bmapfd==NULL){
+    if (gstpano.bmapfd==NULL){
     	printf("can't open bmap\n");
     	exit(1);
     }
@@ -873,7 +876,7 @@ void gstcuda_bmap_config(const char *bmapname){
 void gstcuda_xymap_config(const char *xymapname){
 	
 	gstpano.xymapfd = fopen(xymapname, "rb");
-    if (pano->xymapfd == NULL){
+    if (gstpano.xymapfd == NULL){
     	printf("can't open xymap\n");
     	exit(1);
     }
@@ -927,7 +930,7 @@ void open_static_config(struct pano *pano){
 	HANDLE_ERROR(cudaHostAlloc((void**) &pano->bmap, sizeof(float4) * pano->pano_width*pano->pano_height,cudaHostAllocDefault));
 
 	HANDLE_ERROR(cudaHostAlloc((void**) &pano->panodata, 4 * DEST_X*DEST_Y,cudaHostAllocDefault));
-	HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.panodata, sizeof(uint4)*pano->pano_width*pano->pano_height ) );
+	HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.panodata, 4 * DEST_X*DEST_Y ) );
 
 	HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.xymap, sizeof(uint4)*pano->pano_width*pano->pano_height ) );
     HANDLE_ERROR( cudaMalloc( (void**)&pano->dev.bmap,  sizeof(float4)*pano->pano_width*pano->pano_height ) );
@@ -949,37 +952,37 @@ void open_static_config(struct pano *pano){
 
 void open_sources(struct pano *pano){
 	int i;
-	pano->sdatafd[0] = fopen("./cube/right.rgba", "rb");
+	pano->sdatafd[0] = fopen("./1.rgba", "rb");
     if (pano->sdatafd[0]==NULL){
     	printf("can't open front\n");
     	exit(1);
     }
 
-    pano->sdatafd[1] = fopen("./cube/front.rgba", "rb");
+    pano->sdatafd[1] = fopen("./1.rgba", "rb");
     if (pano->sdatafd[1]==NULL){
     	printf("can't open left\n");
     	exit(1);
     }
 
-    pano->sdatafd[2] = fopen("./cube/left.rgba", "rb");
+    pano->sdatafd[2] = fopen("./1.rgba", "rb");
     if (pano->sdatafd[2]==NULL){
     	printf("can't open right\n");
     	exit(1);
     }
 
-    pano->sdatafd[3] = fopen("./cube/back.rgba", "rb");
+    pano->sdatafd[3] = fopen("./1.rgba", "rb");
     if (pano->sdatafd[3]==NULL){
     	printf("can't open back\n");
     	exit(1);
     }
 
-    pano->sdatafd[4] = fopen("./cube/top.rgba", "rb");
+    pano->sdatafd[4] = fopen("./1.rgba", "rb");
     if (pano->sdatafd[4]==NULL){
     	printf("can't open top\n");
     	exit(1);
     }
 
-    pano->sdatafd[5] = fopen("./cube/bottom.rgba", "rb");
+    pano->sdatafd[5] = fopen("./1.rgba", "rb");
     if (pano->sdatafd[5]==NULL){
     	printf("can't open back\n");
     	exit(1);
@@ -1023,8 +1026,8 @@ int main(){
     panorama.pano_width = 3600;
     panorama.pano_height = 1800;
 
-    panorama.source_width = 1200;
-    panorama.source_height = 1200;
+    panorama.source_width = 1920;
+    panorama.source_height = 1080;
 
     panorama.dest_width = DEST_X;
     panorama.dest_height = DEST_Y;

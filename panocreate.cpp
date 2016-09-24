@@ -441,10 +441,10 @@ int main(){
 
 					//	printf("%08x\n", xymap[j][i].x );
 
-						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)floor(crd(0)))
-															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)floor(crd(1)))
-															, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)ceil(crd(0)))
-															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)ceil(crd(1))));
+						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1920 + (unsigned int)floor(crd(0)))
+															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1080 + (unsigned int)floor(crd(1)))
+															, *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1920 + (unsigned int)ceil(crd(0)))
+															, *(planes[fp]->source->data+(unsigned int)ceil(crd(0))*1080 + (unsigned int)ceil(crd(1))));
 						//test[j][i] = *(planes[fp]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)floor(crd(0)));
 					// switch(p){
 					// 		case 0:
@@ -564,10 +564,10 @@ int main(){
 						xymap[j][i].z = x2; //x2
 						xymap[j][i].w = y2; //y2
 						//printf("%08x\n", xymap[j][i].x );
-						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)floor(crd(0)))
-															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)floor(crd(1)))
-															, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)ceil(crd(0)))
-															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1200 + (unsigned int)ceil(crd(1))));
+						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1920 + (unsigned int)floor(crd(0)))
+															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1080 + (unsigned int)floor(crd(1)))
+															, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1920 + (unsigned int)ceil(crd(0)))
+															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1080 + (unsigned int)ceil(crd(1))));
 						//test[j][i] = *(planes[p]->source->data+(unsigned int)floor(crd(1))*1200 + (unsigned int)floor(crd(0)));
 						// switch(p){
 						// 	case 0:
