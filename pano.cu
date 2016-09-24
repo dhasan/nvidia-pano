@@ -235,7 +235,7 @@ static float det3x3(float *data){
 
 }
 
-static loat det2x2(float *data){
+static float det2x2(float *data){
 	float p1 = *(data + 0*2 + 0) * *(data + 1*2 + 1);
 	float n1 = *(data + 0*2 + 2) * *(data + 1*2 + 1);
 
@@ -835,7 +835,7 @@ void update_matrix(struct pano *pano){
 	inputplane[0] = 0;
 	inputplane[1] = 0;
 	inputplane[2] = DEST_X;
-	inputplane[3] = DEST_static Y;
+	inputplane[3] = DEST_Y;
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
@@ -1025,8 +1025,8 @@ int main(){
     panorama.source_width = 1200;
     panorama.source_height = 1200;
 
-    panorama.dest_width = 800;
-    panorama.dest_height = 600;
+    panorama.dest_width = DEST_X;
+    panorama.dest_height = DEST_Y;
 
     panorama.theta = deg_to_rad(0);
     panorama.phi = deg_to_rad(90);
@@ -1039,7 +1039,7 @@ int main(){
     dim3 grid(panorama.dest_width/8,panorama.dest_height/8);
     dim3 block(8,8);
 
-    
+    FILE *planefd = fopen("ooo.rgba", "wb+");
     create_pano<<<grid,block>>>(	panorama.dev.matrix,
     							panorama.dev.xymap,
     							panorama.dev.bmap,
@@ -1055,9 +1055,9 @@ int main(){
     HANDLE_ERROR(cudaMemcpy( panorama.panodata, panorama.dev.panodata, 4*DEST_Y*DEST_X, cudaMemcpyDeviceToHost )); 
 
 
-	// fwrite(plane, DEST_Y*DEST_X,4,planefd);
-	// fflush(planefd);
-	// fclose(planefd);
+	fwrite(panorama.panodata, DEST_Y*DEST_X,4,planefd);
+	fflush(planefd);
+	fclose(planefd);
 
 
 }
