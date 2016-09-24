@@ -14,8 +14,8 @@
 #define ANGLE_PHI	(0)
 #define ANGLE_THETA	(0)
 
-#define FOV_X		(90)
-#define FOV_Y		(90)
+// #define FOV_X		(90)
+// #define FOV_Y		(90)
 
 #define RADIUS		(1)
 //#define RADIUS		(OUT_X/(2*datum::pi))
@@ -559,6 +559,7 @@ static void create_rotate_matrix(float theta, float phi, float *rmatrix){
 
     float fa[9];
     float fb[9];
+   
 
     fb[0] = 1; fb[1] = 0; 			fb[2] = 0;
     fb[3] = 0; fb[4] = cos(phi);	fb[5] = -sin(phi);
@@ -568,7 +569,7 @@ static void create_rotate_matrix(float theta, float phi, float *rmatrix){
     fa[3] = sin(theta); fa[4] = cos(theta); 	fa[5] = 0;
     fa[6] = 0; 			fa[7] = 0;				fa[8] = 1;
 
- 	
+    
  	//rmatrix = fa * fb;
     mul3x3x3(fa,fb,rmatrix);
 }
@@ -806,7 +807,7 @@ void gstcuda_update_matrix(float fov, float phi, float theta){
 	inputplane[0] = 0;
 	inputplane[1] = 0;
 	inputplane[2] = gstpano.dest_width;
-	inputplane[3] = gstpano.dest_heighstatic t;
+	inputplane[3] = gstpano.dest_height;
 
 	create_project_matrix(outplane, inputplane, pmatrix);
 								//theta 		//phi
@@ -1028,8 +1029,8 @@ int main(){
     panorama.dest_width = DEST_X;
     panorama.dest_height = DEST_Y;
 
-    panorama.theta = deg_to_rad(0);
-    panorama.phi = deg_to_rad(90);
+    panorama.theta = deg_to_rad(90);
+    panorama.phi = deg_to_rad(125);
     panorama.fov = deg_to_rad(120);
 
     update_matrix(&panorama);
