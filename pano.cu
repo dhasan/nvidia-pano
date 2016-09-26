@@ -7,7 +7,7 @@
 #define 	SOURCE_Y 			(1080)
 
 #define DEST_X 	(640)
-#define DEST_Y	(640)
+#define DEST_Y	(480)
 
 #define DEST_RATIO ((float)DEST_X)/((float)DEST_Y)
 
@@ -104,6 +104,7 @@ static void HandleError( cudaError_t err,
 
 #ifdef CUDA_PANO_LIB
 struct pano gstpano;
+cudaStream_t stream[8];
 #endif
 
 static void mul4x4x4(float *a, float *b, float *out){
@@ -690,14 +691,15 @@ __device__ unsigned int dotsmultiply(uint4 *xymappt1, float4 *bmappt, unsigned i
 	unsigned int y2 = xymappt->w;
 
 	if ((x1>SOURCE_X) || (x2>SOURCE_X) || (y1>SOURCE_Y) || (y2>SOURCE_Y))
-		return 0;
+		return 0x88888888;
 
 	unsigned int q =argb_interpolate(bmappt + y*OUT_X + x, 	
 									 *(sdatapt + SOURCE_X*y1 + x1),
 									 *(sdatapt + SOURCE_X*y2 + x1), 
 									 *(sdatapt + SOURCE_X*y1 + x2),
 									 *(sdatapt + SOURCE_X*y2 + x2)	); 
-
+	//printf("%d %d %d %d\n",x1, x2, y1,y2 );
+	//printf("%x\n",*(sdatapt + SOURCE_X*y1 + x1) );
 	return q;
 }
 
@@ -760,15 +762,18 @@ __global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	
 		unsigned int q2 = dotsmultiply(dev_xymap, dev_bmap, sources, ceil(jff), floor(iff));
 		unsigned int q3 = dotsmultiply(dev_xymap, dev_bmap, sources, floor(jff), ceil(iff));
 		unsigned int q4 = dotsmultiply(dev_xymap, dev_bmap, sources, ceil(jff), ceil(iff));
-
+#ifndef CUDA_PANO_LIB
 		*(dev_plane + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
-
+#else
+		*(dev_plane + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
+		
+#endif
 }
 
 #ifdef CUDA_PANO_LIB
 
-void gstcuda_process(){
-
+extern "C" void gstcuda_process(){
+	cudaSetDevice(0);
 	dim3 grid(gstpano.dest_width/8,gstpano.dest_height/8);
     dim3 block(8,8);
 
@@ -785,16 +790,20 @@ void gstcuda_process(){
     							);	
 }
 
-void gstcuda_get_output(void *out){
-	HANDLE_ERROR(cudaMemcpy( out, gstpano.dev.panodata, 4*gstpano.dest_width*gstpano.dest_height, cudaMemcpyDeviceToHost )); 
+extern "C" void gstcuda_get_output(void *out){
+	cudaSetDevice(0);
+	HANDLE_ERROR(cudaMemcpy( out, gstpano.dev.panodata, 4*gstpano.dest_width*gstpano.dest_height, cudaMemcpyDeviceToHost)); 
 
 }
 
 #endif
 
 #ifdef CUDA_PANO_LIB
-void gstcuda_update_matrix(float fov, float phi, float theta){
+extern "C" void gstcuda_update_matrix(float fov, float phi, float theta){
 	static int once = 0;
+	
+	cudaSetDevice(0);
+	printf("theta: %f\n",theta );
 	float outplane[9];
 	float pmatrix[9];
 	float rmatrix[9];
@@ -856,7 +865,8 @@ void update_matrix(struct pano *pano){
 }
 #endif
 #ifdef CUDA_PANO_LIB
-void gstcuda_bmap_config(const char *bmapname){
+extern "C" void gstcuda_bmap_config(const char *bmapname){
+	cudaSetDevice(0);
 	gstpano.bmapfd = fopen(bmapname, "rb");
     if (gstpano.bmapfd==NULL){
     	printf("can't open bmap\n");
@@ -873,8 +883,8 @@ void gstcuda_bmap_config(const char *bmapname){
     fclose(gstpano.bmapfd);
 
 }
-void gstcuda_xymap_config(const char *xymapname){
-	
+extern "C" void gstcuda_xymap_config(const char *xymapname){
+	cudaSetDevice(0);
 	gstpano.xymapfd = fopen(xymapname, "rb");
     if (gstpano.xymapfd == NULL){
     	printf("can't open xymap\n");
@@ -892,7 +902,7 @@ void gstcuda_xymap_config(const char *xymapname){
 
 }
 
-void gstcuda_set_dims(
+extern "C" void gstcuda_set_dims(
 						int pano_width,
 						int pano_height,
 						int source_width,
@@ -900,16 +910,29 @@ void gstcuda_set_dims(
 						int dest_width,
 						int dest_height
 					){
-	panorama.pano_width = pano_width;
-    panorama.pano_height = pano_height;
+	int i;
+	cudaSetDevice(0);
+	gstpano.pano_width = pano_width;
+    gstpano.pano_height = pano_height;
 
-    panorama.source_width = source_width;
-    panorama.source_height = source_height;
+    gstpano.source_width = source_width;
+    gstpano.source_height = source_height;
 
-    panorama.dest_width = dest_width;
-    panorama.dest_height = dest_height;
+    gstpano.dest_width = dest_width;
+    gstpano.dest_height = dest_height;
 
-	HANDLE_ERROR( cudaMalloc( (void**)&gstpano.dev.panodata, sizeof(uint4)*gstpano.pano_width*gstpano.pano_height ) );
+	HANDLE_ERROR( cudaMalloc( (void**)&gstpano.dev.panodata, 4*gstpano.dest_width*gstpano.dest_height ) );
+	for(i=0;i<6;i++){
+		//HANDLE_ERROR(cudaHostAlloc((void**) &pano->sdata[i], 4 * pano->source_width*pano->source_height,cudaHostAllocDefault));
+		//fread(pano->sdata[i], 4, pano->source_width*pano->source_height, pano->sdatafd[i]);
+		//fflush(pano->sdatafd[i]);
+		HANDLE_ERROR( cudaMalloc( (void**)&gstpano.dev.sdata[i], 4 * (gstpano.source_width*gstpano.source_height) ) );
+
+       	//HANDLE_ERROR( cudaMemcpy( pano->dev.sdata[i], pano->sdata[i], 4*pano->source_width*pano->source_height, cudaMemcpyHostToDevice ) );
+    	//HANDLE_ERROR(cudaStreamCreate(&stream[i]));
+	}
+//	HANDLE_ERROR(cudaStreamCreate(&stream[6]));
+//	HANDLE_ERROR(cudaStreamCreate(&stream[7]));
 
 }
 #else
@@ -1000,9 +1023,22 @@ void open_sources(struct pano *pano){
 }
 
 #ifdef CUDA_PANO_LIB
-void gstcuda_update_source(int sourceid, unsigned int *data){
-	HANDLE_ERROR( cudaMemcpy( gstpano.dev.sdata[sourceid], data, 4*gstpano.source_width*gstpano.source_height, cudaMemcpyHostToDevice ) );	
+extern "C" void gstcuda_update_source(int sourceid, unsigned int *data){
+	cudaSetDevice(0);
+	printf("dest: %p src: %p size: %d\n",gstpano.dev.sdata[sourceid], data,  4*gstpano.source_width*gstpano.source_height);
+
+	HANDLE_ERROR( cudaMemcpy( gstpano.dev.sdata[sourceid], (void *)data, 4*gstpano.source_width*gstpano.source_height, cudaMemcpyHostToDevice ) );	
 }
+
+extern "C" void gstcuda_sync_all(){
+	cudaSetDevice(0);
+	cudaDeviceSynchronize();
+}
+
+extern "C" void gstcuda_sync_stream(int id){
+	cudaSetDevice(0);
+}
+
 #else
 
 void update_sources(struct pano *pano){
