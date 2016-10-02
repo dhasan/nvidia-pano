@@ -63,6 +63,10 @@ struct pano {
 
 	struct dev dev;
 
+	//////////////////
+	cudaTextureObject_t xytext;// = 0;	
+	cudaTextureObject_t btext;// = 0;	
+
 
 };
 
@@ -406,7 +410,7 @@ static void create_out_plane(float *coord, float fov, float ratio){
 	x2 = x/2.0;
 	y2 = y/2.0;
 
-	printf("x2: %f y2 %f\n",x2,y2 );
+	//printf("x2: %f y2 %f\n",x2,y2 );
 
 	//float fov2 = fov/2.0;
 
@@ -438,7 +442,7 @@ static void create_out_plane(float *coord, float fov, float ratio){
 	}
 
 	sphere_to_cart(&sph_t, &cart_1);
-	printf("theta1: %f phi1 %f\n",rad_to_deg(theta_1), rad_to_deg(phi_1) );
+	//printf("theta1: %f phi1 %f\n",rad_to_deg(theta_1), rad_to_deg(phi_1) );
 
 	sph_t.x = theta_2;
 	sph_t.y = phi_2;
@@ -457,7 +461,7 @@ static void create_out_plane(float *coord, float fov, float ratio){
 
 
 	sphere_to_cart(&sph_t, &cart_2);
-	printf("theta2: %f phi2 %f\n",rad_to_deg(theta_2), rad_to_deg(phi_2));
+	//printf("theta2: %f phi2 %f\n",rad_to_deg(theta_2), rad_to_deg(phi_2));
 
 	sph_t.x = theta_3;
 	sph_t.y = phi_3;
@@ -477,7 +481,7 @@ static void create_out_plane(float *coord, float fov, float ratio){
 
 
 	sphere_to_cart(&sph_t, &cart_3);
-	printf("theta3: %f phi3 %f\n",rad_to_deg(theta_3), rad_to_deg(phi_3) );
+	//printf("theta3: %f phi3 %f\n",rad_to_deg(theta_3), rad_to_deg(phi_3) );
 
 	sph_t.x = theta_4;
 	sph_t.y = phi_4;
@@ -496,17 +500,17 @@ static void create_out_plane(float *coord, float fov, float ratio){
 	}
 
 	sphere_to_cart(&sph_t, &cart_4);
-	printf("theta4: %f phi4 %f\n",rad_to_deg(theta_4), rad_to_deg(phi_4) );
+//	printf("theta4: %f phi4 %f\n",rad_to_deg(theta_4), rad_to_deg(phi_4) );
 
 	cart_c.x = (cart_1.x + cart_3.x)/2;
 	cart_c.y = (cart_1.y + cart_3.y)/2;
 	cart_c.z = (cart_1.z + cart_3.z)/2;
 
-	printf("p1 x: %f, y: %f, z: %f\n",cart_1.x,cart_1.y,cart_1.z );
-	printf("p2 x: %f, y: %f, z: %f\n",cart_2.x,cart_2.y,cart_2.z );
-	printf("p3 x: %f, y: %f, z: %f\n",cart_3.x,cart_3.y,cart_3.z );
-	printf("p4 x: %f, y: %f, z: %f\n",cart_4.x,cart_4.y,cart_4.z );
-	printf("center x: %f y: %f z: %f\n",cart_c.x, cart_c.y, cart_c.z );
+	// printf("p1 x: %f, y: %f, z: %f\n",cart_1.x,cart_1.y,cart_1.z );
+	// printf("p2 x: %f, y: %f, z: %f\n",cart_2.x,cart_2.y,cart_2.z );
+	// printf("p3 x: %f, y: %f, z: %f\n",cart_3.x,cart_3.y,cart_3.z );
+	// printf("p4 x: %f, y: %f, z: %f\n",cart_4.x,cart_4.y,cart_4.z );
+	// printf("center x: %f y: %f z: %f\n",cart_c.x, cart_c.y, cart_c.z );
 	coord[0]=cart_2.x;coord[1]=cart_2.y;coord[2]=cart_2.z;
 	coord[3]=cart_4.x;coord[4]=cart_4.y;coord[5]=cart_4.z;
 	coord[6]=cart_3.x;coord[7]=cart_3.y;coord[8]=cart_3.z;
@@ -576,13 +580,13 @@ static void create_rotate_matrix(float theta, float phi, float *rmatrix){
 }
 
 
-__device__ unsigned int argb_interpolate(struct float4 *gvec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
+__device__ unsigned int argb_interpolate(struct float4 vec, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4 ){
 
-	float4 vec;
-	vec.x = gvec->x;
-	vec.y = gvec->y;
-	vec.z = gvec->z;
-	vec.w = gvec->w;
+	// float4 vec;
+	// vec.x = gvec.x;
+	// vec.y = gvec.y;
+	// vec.z = gvec.z;
+	// vec.w = gvec.w;
 
 	unsigned char a1 = (unsigned char)((q1 & 0xFF000000) >> 24);
 	unsigned char a2 = (unsigned char)((q2 & 0xFF000000) >> 24);
@@ -674,26 +678,31 @@ __device__ unsigned int interpolate(float x, float y, unsigned int q1, unsigned 
 		bmap.w = 0.25f;
 	}
 
-	val =  argb_interpolate(&bmap, q1,q2,q3,q4); 
+	val =  argb_interpolate(bmap, q1,q2,q3,q4); 
 
 	return val;
 }	
-__device__ unsigned int dotsmultiply(uint4 *xymappt1, float4 *bmappt, unsigned int **sources, int y, int x){
+__device__ unsigned int dotsmultiply(cudaTextureObject_t xytext, /*float4 *bmappt*/cudaTextureObject_t btext, unsigned int **sources, int y, int x){
 
-	uint4 *xymappt = xymappt1+ (y*OUT_X + x);
+	uint4 xymap = tex2D<uint4>(xytext, x,y);
+	float4 bmap = tex2D<float4>(btext, x,y);
+	unsigned int sid = xymap.x >> 16;
 
-	unsigned int sid = xymappt->x >> 16;
 	unsigned int *sdatapt = sources[sid];//&sdata[sid][0][0];
 
-	unsigned int x1 = xymappt->x & 0x0000FFFF;
-	unsigned int x2 = xymappt->y;
-	unsigned int y1 = xymappt->z;
-	unsigned int y2 = xymappt->w;
+	unsigned int x1 = xymap.x & 0x0000FFFF;
+	unsigned int x2 = xymap.y;
+	unsigned int y1 = xymap.z;
+	unsigned int y2 = xymap.w;
+	//printf("%d %d %d %d\n", x1,x2,y1,y2 );
+
 
 	if ((x1>SOURCE_X) || (x2>SOURCE_X) || (y1>SOURCE_Y) || (y2>SOURCE_Y))
-		return 0x88888888;
+		return 0x0;
+	
+	//unsigned int t=0;
 
-	unsigned int q =argb_interpolate(bmappt + y*OUT_X + x, 	
+	unsigned int q =argb_interpolate(bmap, 	
 									 *(sdatapt + SOURCE_X*y1 + x1),
 									 *(sdatapt + SOURCE_X*y2 + x1), 
 									 *(sdatapt + SOURCE_X*y1 + x2),
@@ -703,7 +712,7 @@ __device__ unsigned int dotsmultiply(uint4 *xymappt1, float4 *bmappt, unsigned i
 	return q;
 }
 
-__global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	unsigned int *dev_source0,
+__global__ void create_pano(float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, 	unsigned int *dev_source0,
 														unsigned int *dev_source1,
 														unsigned int *dev_source2,
 														unsigned int *dev_source3,
@@ -714,6 +723,8 @@ __global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	
 	float nv_invec[3];
 	float nv_outvec[3];
 	unsigned int *sources[6];
+	//float dev_wm_s[9];
+	//int i;
 	float3 cr,sp;
 	float jff, iff;
 
@@ -730,6 +741,8 @@ __global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	
 	nv_invec[0] = (float)ii;
 	nv_invec[1] = (float)jj;
 	nv_invec[2] = (float)1;
+	// for (i=0;i<9;i++)
+	// 	dev_wm_s[i] = dev_wm[9];
 	
 	mul3x3x1(dev_wm, nv_invec, nv_outvec);
 
@@ -758,10 +771,12 @@ __global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	
 		jff = phi_to_j(sp.y);
 		iff = theta_to_i(sp.x);
 
-		unsigned int q1 = dotsmultiply(dev_xymap, dev_bmap, sources, floor(jff), floor(iff));
-		unsigned int q2 = dotsmultiply(dev_xymap, dev_bmap, sources, ceil(jff), floor(iff));
-		unsigned int q3 = dotsmultiply(dev_xymap, dev_bmap, sources, floor(jff), ceil(iff));
-		unsigned int q4 = dotsmultiply(dev_xymap, dev_bmap, sources, ceil(jff), ceil(iff));
+
+
+		unsigned int q1 = dotsmultiply(xytext, btext, sources, floor(jff), floor(iff));
+		unsigned int q2 = dotsmultiply(xytext, btext, sources, ceil(jff), floor(iff));
+		unsigned int q3 = dotsmultiply(xytext, btext, sources, floor(jff), ceil(iff));
+		unsigned int q4 = dotsmultiply(xytext, btext, sources, ceil(jff), ceil(iff));
 #ifndef CUDA_PANO_LIB
 		*(dev_plane + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
 #else
@@ -774,12 +789,18 @@ __global__ void create_pano(float *dev_wm, uint4 *dev_xymap, float4 *dev_bmap, 	
 
 extern "C" void gstcuda_process(){
 	cudaSetDevice(0);
-	dim3 grid(gstpano.dest_width/8,gstpano.dest_height/8);
-    dim3 block(8,8);
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+	dim3 grid(gstpano.dest_width/16,gstpano.dest_height/16);
+    dim3 block(16,16);
+
+    cudaEventRecord(start);
 
 	create_pano<<<grid,block>>>(	gstpano.dev.matrix,
-    								gstpano.dev.xymap,
-    							gstpano.dev.bmap,
+    								gstpano.xytext,
+    							gstpano.btext,
     							gstpano.dev.sdata[0],
     							gstpano.dev.sdata[1],
     							gstpano.dev.sdata[2],
@@ -788,6 +809,11 @@ extern "C" void gstcuda_process(){
     							gstpano.dev.sdata[5],
     							gstpano.dev.panodata
     							);	
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);
+	printf("kernel execution: %fms\n", milliseconds);
 }
 
 extern "C" void gstcuda_get_output(void *out){
@@ -803,7 +829,7 @@ extern "C" void gstcuda_update_matrix(float fov, float phi, float theta){
 	static int once = 0;
 	
 	cudaSetDevice(0);
-	printf("theta: %f\n",theta );
+//	printf("theta: %f\n",theta );
 	float outplane[9];
 	float pmatrix[9];
 	float rmatrix[9];
@@ -882,6 +908,26 @@ extern "C" void gstcuda_bmap_config(const char *bmapname){
     HANDLE_ERROR( cudaMemcpy( gstpano.dev.bmap, gstpano.bmap, sizeof(float4)*gstpano.pano_width*gstpano.pano_height, cudaMemcpyHostToDevice ) );
     fclose(gstpano.bmapfd);
 
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+  	resDesc.resType = cudaResourceTypePitch2D;
+  	resDesc.res.pitch2D.devPtr = gstpano.dev.bmap;
+  	resDesc.res.pitch2D.pitchInBytes =  sizeof(float4)*gstpano.pano_width;
+  	resDesc.res.pitch2D.width = gstpano.pano_width;
+	resDesc.res.pitch2D.height = gstpano.pano_height;
+	resDesc.res.pitch2D.desc.f = cudaChannelFormatKindFloat;
+  	resDesc.res.pitch2D.desc.x = 32; // bits per channel
+  	resDesc.res.pitch2D.desc.y = 32; // bits per channel
+  	resDesc.res.pitch2D.desc.z = 32; // bits per channel
+  	resDesc.res.pitch2D.desc.w = 32; // bits per channel
+  	
+
+  	cudaTextureDesc textDesc;	
+  	memset(&textDesc, 0, sizeof(textDesc));
+  	textDesc.readMode = cudaReadModeElementType;
+
+  	gstpano.btext = 0;
+  	cudaCreateTextureObject(&gstpano.btext, &resDesc, &textDesc, NULL);
 }
 extern "C" void gstcuda_xymap_config(const char *xymapname){
 	cudaSetDevice(0);
@@ -900,6 +946,43 @@ extern "C" void gstcuda_xymap_config(const char *xymapname){
     HANDLE_ERROR( cudaMemcpy( gstpano.dev.xymap, gstpano.xymap, sizeof(uint4)*gstpano.pano_width*gstpano.pano_height, cudaMemcpyHostToDevice ) );
     fclose(gstpano.xymapfd);
 
+  	cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+  	resDesc.resType = cudaResourceTypePitch2D;
+  	resDesc.res.pitch2D.devPtr = gstpano.dev.xymap;
+  	resDesc.res.pitch2D.pitchInBytes =  sizeof(uint4)*gstpano.pano_width;
+  	resDesc.res.pitch2D.width = gstpano.pano_width;
+	resDesc.res.pitch2D.height = gstpano.pano_height;
+	resDesc.res.pitch2D.desc.f = cudaChannelFormatKindUnsigned;
+  	resDesc.res.pitch2D.desc.x = 32; // bits per channel
+  	resDesc.res.pitch2D.desc.y = 32; // bits per channel
+  	resDesc.res.pitch2D.desc.z = 32; // bits per channel
+  	resDesc.res.pitch2D.desc.w = 32; // bits per channel
+  	
+
+  	cudaTextureDesc textDesc;	
+  	memset(&textDesc, 0, sizeof(textDesc));
+  	textDesc.readMode = cudaReadModeElementType;
+
+  	gstpano.xytext = 0;
+  	cudaCreateTextureObject(&gstpano.xytext, &resDesc, &textDesc, NULL);
+
+  	// 			cudaDestroyTextureObject(texSrc);
+			// cudaFree(d_pSrc);
+
+}
+
+extern "C" void *gstcuda_host_alloc(size_t size){
+	cudaSetDevice(0);
+	void *mem;
+	printf("cuda alloc size: %lu...........................................\n",size );
+	HANDLE_ERROR(cudaHostAlloc((void**) &mem, size,cudaHostAllocDefault));
+	return mem;
+}
+
+extern "C" void gstcuda_host_free(void *mem){
+	cudaSetDevice(0);
+	HANDLE_ERROR(cudaFreeHost(mem));
 }
 
 extern "C" void gstcuda_set_dims(
@@ -1025,7 +1108,7 @@ void open_sources(struct pano *pano){
 #ifdef CUDA_PANO_LIB
 extern "C" void gstcuda_update_source(int sourceid, unsigned int *data){
 	cudaSetDevice(0);
-	printf("dest: %p src: %p size: %d\n",gstpano.dev.sdata[sourceid], data,  4*gstpano.source_width*gstpano.source_height);
+//	printf("dest: %p src: %p size: %d\n",gstpano.dev.sdata[sourceid], data,  4*gstpano.source_width*gstpano.source_height);
 
 	HANDLE_ERROR( cudaMemcpy( gstpano.dev.sdata[sourceid], (void *)data, 4*gstpano.source_width*gstpano.source_height, cudaMemcpyHostToDevice ) );	
 }
