@@ -104,7 +104,8 @@ static void HandleError( cudaError_t err,
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 #endif
 
-# define M_PI           3.14159265358979323846
+#define M_PI           3.14159265358979323846
+#define M_PI_R 			(1.0/M_PI)
 
 #ifdef CUDA_PANO_LIB
 struct pano gstpano;
@@ -186,43 +187,43 @@ double det4x4(double *a){
 
 __device__ bool inverse4x4(double *a, double *b){
 	double det = det4x4(a);
-
+	double detr = 1.0/det;
 	if (det==0.0f){
 		return false;
 	}
 
 	b[0] = (a[5]*a[10]*a[15] + a[6]*a[11]*a[13] + a[7]*a[9]*a[14]  -
-			a[5]*a[11]*a[14] - a[6]*a[9]*a[15]  - a[7]*a[10]*a[13])/det;
+			a[5]*a[11]*a[14] - a[6]*a[9]*a[15]  - a[7]*a[10]*a[13])*detr;
 	b[1] = (a[1]*a[11]*a[14] + a[2]*a[9]*a[15]  + a[3]*a[10]*a[13] -
-			a[1]*a[10]*a[15] - a[2]*a[11]*a[13] - a[3]*a[9]*a[14])/det;
+			a[1]*a[10]*a[15] - a[2]*a[11]*a[13] - a[3]*a[9]*a[14])*detr;
 	b[2] = (a[1]*a[6]*a[15]  + a[2]*a[7]*a[13]  + a[3]*a[5]*a[14]  -
-			a[1]*a[7]*a[14]  - a[2]*a[5]*a[15]  - a[3]*a[6]*a[13])/det;
+			a[1]*a[7]*a[14]  - a[2]*a[5]*a[15]  - a[3]*a[6]*a[13])*detr;
 	b[3] = (a[1]*a[7]*a[10]  + a[2]*a[5]*a[11]  + a[3]*a[6]*a[9]   -
-			a[1]*a[6]*a[11]  - a[2]*a[7]*a[9]   - a[3]*a[5]*a[10])/det;
+			a[1]*a[6]*a[11]  - a[2]*a[7]*a[9]   - a[3]*a[5]*a[10])*detr;
 	b[4] = (a[4]*a[11]*a[14] + a[6]*a[8]*a[15]  + a[7]*a[10]*a[12] -
-			a[4]*a[10]*a[15] - a[6]*a[11]*a[12] - a[7]*a[8]*a[14])/det;
+			a[4]*a[10]*a[15] - a[6]*a[11]*a[12] - a[7]*a[8]*a[14])*detr;
 	b[5] = (a[0]*a[10]*a[15] + a[2]*a[11]*a[12] + a[3]*a[8]*a[14]  -
-			a[0]*a[11]*a[14] - a[2]*a[8]*a[15]  - a[3]*a[10]*a[12])/det;
+			a[0]*a[11]*a[14] - a[2]*a[8]*a[15]  - a[3]*a[10]*a[12])*detr;
 	b[6] = (a[0]*a[7]*a[14]  + a[2]*a[4]*a[15]  + a[3]*a[6]*a[12]  -
-			a[0]*a[6]*a[15]  - a[2]*a[7]*a[12]  - a[3]*a[4]*a[14])/det;
+			a[0]*a[6]*a[15]  - a[2]*a[7]*a[12]  - a[3]*a[4]*a[14])*detr;
 	b[7] = (a[0]*a[6]*a[11]  + a[2]*a[7]*a[8]   + a[3]*a[4]*a[10]  -
-			a[0]*a[7]*a[10]  - a[2]*a[4]*a[11]  - a[3]*a[6]*a[8])/det;
+			a[0]*a[7]*a[10]  - a[2]*a[4]*a[11]  - a[3]*a[6]*a[8])*detr;
 	b[8] = (a[4]*a[9]*a[15]  + a[5]*a[11]*a[12] + a[7]*a[8]*a[13] -
-			a[4]*a[11]*a[13] - a[5]*a[8]*a[15]  - a[7]*a[9]*a[12])/det;
+			a[4]*a[11]*a[13] - a[5]*a[8]*a[15]  - a[7]*a[9]*a[12])*detr;
 	b[9] = (a[0]*a[11]*a[13] + a[1]*a[8]*a[15]  + a[3]*a[9]*a[12] -
-			a[0]*a[9]*a[15]  - a[1]*a[11]*a[12] - a[3]*a[8]*a[13])/det;
+			a[0]*a[9]*a[15]  - a[1]*a[11]*a[12] - a[3]*a[8]*a[13])*detr;
 	b[10]= (a[0]*a[5]*a[15]  + a[1]*a[7]*a[12]  + a[3]*a[4]*a[13] -
-			a[0]*a[7]*a[13]  - a[1]*a[4]*a[15]  - a[3]*a[5]*a[12])/det;
+			a[0]*a[7]*a[13]  - a[1]*a[4]*a[15]  - a[3]*a[5]*a[12])*detr;
 	b[11]= (a[0]*a[7]*a[9]   + a[1]*a[4]*a[11]  + a[3]*a[5]*a[8]  -
-			a[0]*a[5]*a[11]  - a[1]*a[7]*a[8]   - a[3]*a[4]*a[9])/det;
+			a[0]*a[5]*a[11]  - a[1]*a[7]*a[8]   - a[3]*a[4]*a[9])*detr;
 	b[12]= (a[4]*a[10]*a[13] + a[5]*a[8]*a[14]  + a[6]*a[9]*a[12] -
-			a[4]*a[9]*a[14]  - a[5]*a[10]*a[12] - a[6]*a[8]*a[13])/det;
+			a[4]*a[9]*a[14]  - a[5]*a[10]*a[12] - a[6]*a[8]*a[13])*detr;
 	b[13]= (a[0]*a[9]*a[14]  + a[1]*a[10]*a[12] + a[2]*a[8]*a[13] -
-			a[0]*a[10]*a[13] - a[1]*a[8]*a[14]  - a[2]*a[9]*a[12])/det;
+			a[0]*a[10]*a[13] - a[1]*a[8]*a[14]  - a[2]*a[9]*a[12])*detr;
 	b[14]= (a[0]*a[6]*a[13]  + a[1]*a[4]*a[14]  + a[2]*a[5]*a[12] -
-			a[0]*a[5]*a[14]  - a[1]*a[6]*a[12]  - a[2]*a[4]*a[13])/det;
+			a[0]*a[5]*a[14]  - a[1]*a[6]*a[12]  - a[2]*a[4]*a[13])*detr;
 	b[15]= (a[0]*a[5]*a[10]  + a[1]*a[6]*a[8]   + a[2]*a[4]*a[9]  -
-			a[0]*a[6]*a[9]   - a[1]*a[4]*a[10]  - a[2]*a[5]*a[8])/det;
+			a[0]*a[6]*a[9]   - a[1]*a[4]*a[10]  - a[2]*a[5]*a[8])*detr;
 	return true;
 }
 
@@ -315,7 +316,7 @@ void trans3x3(float *data, float *out){
 
 
 __device__ float phi_to_j(float phi){
-	float j = (float)(((OUT_Y-1)*phi  +  (OUT_Y-1)*0)/M_PI);
+	float j = (float)(((OUT_Y-1)*phi  +  (OUT_Y-1)*0)*M_PI_R);
 	return j;
 }
 
@@ -349,7 +350,7 @@ static void sphere_to_cart(float3 *sph, float3 *cart){
 __device__ void cart_to_sphere(float3 *cart, float3 *sph){
 	float theta;
 	float phi;
-	float r = sqrt((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
+	float r = sqrtf((cart->x*cart->x) + (cart->y*cart->y) + (cart->z*cart->z));
 	
 	if (cart->x==0) 
 		if (cart->y < 0)
@@ -357,9 +358,9 @@ __device__ void cart_to_sphere(float3 *cart, float3 *sph){
 		else
 			theta = M_PI/2;
 	else
-		theta = atan(cart->y/cart->x);
+		theta = atanf(cart->y/cart->x);
 
-	phi = acos(cart->z/r);
+	phi = acosf(cart->z/r);
 
 	if (cart->x<0)
 		phi*=-1;
@@ -608,10 +609,10 @@ __device__ unsigned int argb_interpolate(struct float4 vec, unsigned int q1, uns
 	unsigned char b3 = (unsigned char)((q3 & 0x000000FF) >> 0);
 	unsigned char b4 = (unsigned char)((q4 & 0x000000FF) >> 0);
 
-	unsigned char a = 	floor((vec.x * (float)a1 +
-						vec.y * (float)a2 +
-						vec.z * (float)a3 +
-						vec.w * (float)a4));
+	unsigned char a = 	floor((vec.x * a1 +
+						vec.y * a2 +
+						vec.z * a3 +
+						vec.w * a4));
 
 	unsigned char r = 	floor((vec.x * (float)r1 +
 						vec.y * (float)r2 +
@@ -738,9 +739,9 @@ __global__ void create_pano(float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObjec
 	int jj = blockIdx.y * blockDim.y + threadIdx.y;
     int ii = blockIdx.x * blockDim.x + threadIdx.x;
 
-	nv_invec[0] = (float)ii;
-	nv_invec[1] = (float)jj;
-	nv_invec[2] = (float)1;
+	nv_invec[0] = ii;
+	nv_invec[1] = jj;
+	nv_invec[2] = 1;
 	// for (i=0;i<9;i++)
 	// 	dev_wm_s[i] = dev_wm[9];
 	
@@ -773,14 +774,14 @@ __global__ void create_pano(float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObjec
 
 
 
-		unsigned int q1 = dotsmultiply(xytext, btext, sources, floor(jff), floor(iff));
-		unsigned int q2 = dotsmultiply(xytext, btext, sources, ceil(jff), floor(iff));
-		unsigned int q3 = dotsmultiply(xytext, btext, sources, floor(jff), ceil(iff));
-		unsigned int q4 = dotsmultiply(xytext, btext, sources, ceil(jff), ceil(iff));
+		unsigned int q1 = dotsmultiply(xytext, btext, sources, floorf(jff), floorf(iff));
+		unsigned int q2 = dotsmultiply(xytext, btext, sources, ceilf(jff), floorf(iff));
+		unsigned int q3 = dotsmultiply(xytext, btext, sources, floorf(jff), ceilf(iff));
+		unsigned int q4 = dotsmultiply(xytext, btext, sources, ceilf(jff), ceilf(iff));
 #ifndef CUDA_PANO_LIB
 		*(dev_plane + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
 #else
-		*(dev_plane + jj*DEST_X + ii) = interpolate(iff, jff, q1,q2,q3,q4 );
+		*(dev_plane + jj*DEST_X + ii) = q1;//interpolate(iff, jff, q1,q2,q3,q4 );
 		
 #endif
 }
@@ -793,8 +794,8 @@ extern "C" void gstcuda_process(){
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	dim3 grid(gstpano.dest_width/16,gstpano.dest_height/16);
-    dim3 block(16,16);
+	dim3 grid(gstpano.dest_width/32,gstpano.dest_height/32);
+    dim3 block(32,32);
 
     cudaEventRecord(start);
 
@@ -809,11 +810,12 @@ extern "C" void gstcuda_process(){
     							gstpano.dev.sdata[5],
     							gstpano.dev.panodata
     							);	
+	cudaDeviceSynchronize();
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	float milliseconds = 0;
 	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("kernel execution: %fms\n", milliseconds);
+	//printf("kernel execution: %fms\n", milliseconds);
 }
 
 extern "C" void gstcuda_get_output(void *out){
@@ -975,7 +977,7 @@ extern "C" void gstcuda_xymap_config(const char *xymapname){
 extern "C" void *gstcuda_host_alloc(size_t size){
 	cudaSetDevice(0);
 	void *mem;
-	printf("cuda alloc size: %lu...........................................\n",size );
+	//printf("cuda alloc size: %lu...........................................\n",size );
 	HANDLE_ERROR(cudaHostAlloc((void**) &mem, size,cudaHostAllocDefault));
 	return mem;
 }
