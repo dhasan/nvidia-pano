@@ -558,11 +558,17 @@ int main(){
 							printf("Warning y2: %d at j:%d i:%d for plane %d\n",y2,j,i,p);
 							y2=0;
 						}
-
+#if 0
 						xymap[j][i].x = ((planes[p]->source->id)<<16) | x1; //x1
 						xymap[j][i].y = y1; //y1
 						xymap[j][i].z = x2; //x2
 						xymap[j][i].w = y2; //y2
+#endif
+						xymap[j][i].x = ((planes[p]->source->id)<<16) | x1; //x1
+						xymap[j][i].y = x2; //y1
+						xymap[j][i].z = y1; //x2
+						xymap[j][i].w = y2; //y2
+
 						//printf("%08x\n", xymap[j][i].x );
 						test[j][i] = inter_sum(&bmap[j][i]	, *(planes[p]->source->data+(unsigned int)floor(crd(1))*1920 + (unsigned int)floor(crd(0)))
 															, *(planes[p]->source->data+(unsigned int)ceil(crd(0))*1080 + (unsigned int)floor(crd(1)))
