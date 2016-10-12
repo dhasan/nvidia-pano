@@ -1052,7 +1052,7 @@ extern "C" void gstcuda_set_dims(
 
 	int i;
 //	struct pano *gstpano = (struct pano *)priv;
-	cudaSetDevice(0);
+//	cudaSetDevice(0);
 	gstpano->pano_width = pano_width;
     gstpano->pano_height = pano_height;
 

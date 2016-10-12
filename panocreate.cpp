@@ -12,6 +12,12 @@ struct int4 {
 	unsigned int z;
 	unsigned int w;
 };
+struct uchar4 {
+	unsigned char x;
+	unsigned char y;
+	unsigned char z;
+	unsigned char w;
+};
 
 struct float4 {
 	float x;
@@ -618,6 +624,53 @@ int main(){
 			printf("%d%%...\n", j/18);
 		}
 	}
+
+	float cfy,cfx;
+	int inx=0, iny=0;
+	vec cb= vec(4);
+	mat cbicubic = mat(4,4);
+	vec cvals = vec(4);
+	struct uchar4 interpol_map[256][256];
+
+	for(cfy=1.0f/512.0f; cfy<1.0; cfy+=(1.0f/256.0f)){
+		for(cfx=1.0f/512.0f; cfx<1.0; cfx+=(1.0f/256.0f)){
+			if ((unsigned int)floor(crd(0))!=(unsigned int)ceil(crd(0)) && (unsigned int)floor(cfy)!=(unsigned int)ceil(cfy)){
+				cbicubic << 1 << floor(cfx) << floor(cfy) << floor(cfx) * floor(cfy) << endr
+						<< 1 << floor(cfx) << ceil(cfy) << floor(cfx) * ceil(cfy) << endr
+						<< 1 << ceil(cfx) << floor(cfy) << ceil(cfx) * floor(cfy) << endr
+						<< 1 << ceil(cfx) << ceil(cfy) << ceil(cfx) * ceil(cfy) << endr;
+				cvals 	<< 1 << endr
+						<< cfx << endr
+						<< cfy << endr
+						<< cfx*cfy << endr;
+						
+				cb = trans(inv(cbicubic)) * cvals;// * vals;// * vals;		
+				// b.print();
+				// printf("\n");
+				
+				interpol_map[iny][inx].x = (unsigned char)(255* cb(0));
+				interpol_map[iny][inx].y = (unsigned char)(255*cb(1));
+				interpol_map[iny][inx].z = (unsigned char)(255*cb(2));
+				interpol_map[iny][inx].w = (unsigned char)(255*cb(3));
+			}else{
+				interpol_map[iny][inx].x = 255;
+				interpol_map[iny][inx].y = 0;
+				interpol_map[iny][inx].z = 0;
+				interpol_map[iny][inx].w = 0;
+			}
+						
+			inx++;
+		}
+		inx=0;
+		iny++;
+
+	}
+
+	FILE *intemap = fopen("intermap.bin","wb+");
+	fwrite(interpol_map, 256*256, sizeof(struct uchar4), intemap);
+	fflush(intemap);
+	fclose(intemap);
+
 	//LUT is done
 	fwrite(test, OUT_X*OUT_Y,4, ptr);
 	fflush(ptr);
