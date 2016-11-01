@@ -33,8 +33,8 @@ struct dev {
 	uint4 *xymap;
 	float4 *bmap;
 	uchar4 *intermap;
-	unsigned char *sdata[2][6];
-	unsigned char *panodata[2];
+	char *sdata[2][6];
+	char *panodata[2];
 };
 
 struct pano {
@@ -56,7 +56,7 @@ struct pano {
 	unsigned int source_height;
 
 	FILE *sdatafd[6];
-	unsigned char *sdata[2][6];
+	char *sdata[2][6];
 
 	FILE *xymapfd;
 	uint4 *xymap;
@@ -71,7 +71,7 @@ struct pano {
 	unsigned int dest_height;
 	//float dest_ratio;
 
-	unsigned char *panodata[2];
+	char *panodata[2];
 
 	struct dev dev;
 
@@ -620,7 +620,7 @@ __device__ unsigned char gray8_interpolate(struct float4 vec, unsigned char q1, 
 	return a;
 
 }
-__device__ unsigned int argb_interpolate_ptr(struct float4 vec, unsigned char *pq1, unsigned char *pq2, unsigned char *pq3, unsigned char *pq4 ){
+__device__ unsigned int argb_interpolate_ptr(struct float4 vec, char *pq1, char *pq2, char *pq3, char *pq4 ){
 
 	// float4 vec;
 	// vec.x = gvec.x;
@@ -694,7 +694,7 @@ __device__ unsigned int argb_interpolate_ptr(struct float4 vec, unsigned char *p
 	return ret;
 }
 
-__device__ unsigned int gray8_interpolate_ptr(struct float4 vec, unsigned char *pq1, unsigned char *pq2, unsigned char *pq3, unsigned char *pq4 ){
+__device__ unsigned int gray8_interpolate_ptr(struct float4 vec, char *pq1, char *pq2, char *pq3, char *pq4 ){
 
 	unsigned char a1 = (*pq1);
 	unsigned char a2 = (*pq2);
@@ -782,6 +782,43 @@ __device__ unsigned int gray8_map_dotsmulttiply(uchar4 *intermap, float x, float
 
 }
 
+__device__ uchar4 yuv420_map_mulitply(struct uchar4 vec, uchar4 q1, uchar4 q2, uchar4 q3, uchar4 q4 ){
+
+	uchar4 ret1;
+
+	//y
+	ret1.x = ((vec.x * q1.x) +
+			(vec.y * q2.x) +
+			(vec.z * q3.x) +
+			(vec.w * q4.x))>>8;
+	//u
+	ret1.y = ((vec.x * q1.y) +
+			(vec.y * q2.y) +
+			(vec.z * q3.y) +
+			(vec.w * q4.y))>>8;
+	//v
+	ret1.z = ((vec.x * q1.z) +
+			(vec.y * q2.z) +
+			(vec.z * q3.z) +
+			(vec.w * q4.z))>>8;
+
+	return ret1;
+}
+
+__device__ uchar4 yuv420_map_dotsmulttiply(uchar4 *intermap, float x, float y, uchar4 q1, uchar4 q2, uchar4 q3, uchar4 q4){
+	uchar4 qo;
+	float fx = x - floor(x);
+	float fy = y - floor(y);
+
+	unsigned int ifx = (unsigned int)floor(fx*255);
+	unsigned int ify = (unsigned int)floor(fy*255);
+
+	uchar4 umap = *(intermap + 256*ify + ifx);
+	qo = yuv420_map_mulitply(umap, q1,q2,q3,q4);
+	return qo;
+
+}
+
 
 __device__ unsigned int argb_map_dotsmulttiply(uchar4 *intermap, float x, float y, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4){
 	unsigned int q;
@@ -798,7 +835,7 @@ __device__ unsigned int argb_map_dotsmulttiply(uchar4 *intermap, float x, float 
 }
 #if 0
 __device__ unsigned int interpolatelkjjkh(float x, float y, unsigned int q1, unsigned int q2, unsigned int q3, unsigned int q4){
-	double nv_bicubic[16];
+	double nv_bicuet1bic[16];
 	double nv_vals[4], nv_b[4];
 
 	double nv_inv[16];
@@ -848,43 +885,115 @@ __device__ unsigned int interpolatelkjjkh(float x, float y, unsigned int q1, uns
 	return val;
 }
 #endif	
-__device__ unsigned int gray8_dotsmulttiply(cudaTextureObject_t xytext, /*float4 *bmappt*/cudaTextureObject_t btext, unsigned char **sources, int y, int x){
+__device__ unsigned int gray8_dotsmulttiply(cudaTextureObject_t xytext, /*float4 *bmappt*/cudaTextureObject_t btext, char **sources, int y, int x){
 
 	uint4 xymap = tex2D<uint4>(xytext, x,y);
 	float4 bmap = tex2D<float4>(btext, x,y);
 	unsigned int sid = xymap.x >> 16;
 
-	unsigned char *sdatapt = sources[sid];//&sdata[sid][0][0];
+	char *sdatapt = sources[sid];//&sdata[sid][0][0];
 
 	unsigned int x1 = xymap.x & 0x0000FFFF;
 	unsigned int x2 = xymap.y;
 	unsigned int y1 = xymap.z;
 	unsigned int y2 = xymap.w;
-	//printf("%d %d %d %d\n", x1,x2,y1,y2 );
-
 
 	if ((x1>SOURCE_X) || (x2>SOURCE_X) || (y1>SOURCE_Y) || (y2>SOURCE_Y))
 		return 0x0;
 	
-	//unsigned int t=0;
-
 	unsigned int q =gray8_interpolate_ptr(bmap, 	
 									 (sdatapt + (SOURCE_X*y1) + (x1)),
 									 (sdatapt + (SOURCE_X*y2) + (x1)), 
 									 (sdatapt + (SOURCE_X*y1) + (x2)),
 									 (sdatapt + (SOURCE_X*y2) + (x2))	); 
-	//printf("%d %d %d %d\n",x1, x2, y1,y2 );
-	//printf("%x\n",*(sdatapt + SOURCE_X*y1 + x1) );
 	return q;
 }
 
-__device__ unsigned int argb_dotsmulttiply(cudaTextureObject_t xytext, /*float4 *bmappt*/cudaTextureObject_t btext, unsigned char **sources, int y, int x){
+#define YUV420_Y(s,x,y,pitch)		*(s + (pitch*y) + x)
+#define YUV420_U(s,x,y,bbl,dimy)	*(s + (bbl*dimy) + ((bbl/2)*(y/2)) + (x/2))
+#define YUV420_V(s,x,y,bbl,dimy)	*(s + (bbl*dimy) + (bbl*dimy/4) + ((bbl/2)*(y/2)) + (x/2))
+
+__device__ uchar4 yuv420_interpolate_ptr(float4 bmap, char *src, 
+												unsigned int x1,
+												unsigned int y1,
+												unsigned int x2,
+												unsigned int y2,
+												unsigned int bbl, 
+												unsigned int dimy){
+
+	
+	uchar4 q11,q12,q21,q22;
+
+	q11.x = /*YUV420_Y(src,x1,y1,bbl);*/ *((unsigned char *)src + (bbl*y1) + x1);
+	q11.y = /*YUV420_U(src,x1,y1,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + ((bbl>>1)*y1>>1) + (x1>>1));
+	q11.z = /*YUV420_V(src,x1,y1,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + (bbl*dimy>>2) + ((bbl>>1)*y1>>1) + (x1>>1));
+
+	q12.x = /*YUV420_Y(src,x1,y2,bbl);*/ *((unsigned char *)src + (bbl*y2) + x1);
+	q12.y = /*YUV420_U(src,x1,y2,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + ((bbl>>1)*y2>>1) + (x1>>1));
+	q12.z = /*YUV420_V(src,x1,y2,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + (bbl*dimy>>2) + ((bbl>>1)*y2>>1) + (x1>>1));
+
+	q21.x = /*YUV420_Y(src,x2,y1,bbl);*/ *((unsigned char *)src + (bbl*y1) + x2);
+	q21.y = /*YUV420_U(src,x2,y1,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + ((bbl>>1)*y1>>1) + (x2>>1));
+	q21.z = /*YUV420_V(src,x2,y1,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + (bbl*dimy>>2) + ((bbl>>1)*y1>>1) + (x2>>1));
+
+	q22.x = /*YUV420_Y(src,x2,y2,bbl);*/ *((unsigned char *)src + (bbl*y2) + x2);
+	q22.y = /*YUV420_U(src,x2,y2,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + ((bbl>>1)*y2>>1) + (x2>>1));
+	q22.z = /*YUV420_V(src,x2,y2,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + (bbl*dimy>>2) + ((bbl>>1)*y2>>1) + (x2>>1));
+	uchar4 r;
+
+	/*y*/ r.x = (int)q11.x*bmap.x +
+		q12.x*bmap.y +
+		q21.x*bmap.z +
+		q22.x*bmap.w;
+
+	/*u*/ r.y = (int)q11.y*bmap.x +
+		q12.y*bmap.y +
+		q21.y*bmap.z +
+		q22.y*bmap.w;
+
+	/*v*/ r.z = (int)q11.z*bmap.x +
+		q12.z*bmap.y +
+		q21.z*bmap.z +
+		q22.z*bmap.w;
+
+	
+	return r;
+
+}
+
+__device__ uchar4 yuv420_dotsmulttiply(cudaTextureObject_t xytext, /*float4 *bmappt*/cudaTextureObject_t btext, char **sources, int y, int x){
+
+	uint4 xymap = tex2D<uint4>(xytext, x,y);
+	float4 bmap = tex2D<float4>(btext, x,y);
+	unsigned int sid = xymap.x >> 16;
+	uchar4 qo;
+	char *sdatapt = sources[sid];//&sdata[sid][0][0];
+
+	unsigned int x1 = xymap.x & 0x0000FFFF;
+	unsigned int x2 = xymap.y;
+	unsigned int y1 = xymap.z;
+	unsigned int y2 = xymap.w;
+
+	if ((x1>SOURCE_X) || (x2>SOURCE_X) || (y1>SOURCE_Y) || (y2>SOURCE_Y)){
+		qo =yuv420_interpolate_ptr(bmap, sdatapt, 0,0,0,0, SOURCE_X,SOURCE_Y);
+		return qo;
+	}
+	
+	qo =yuv420_interpolate_ptr(bmap, sdatapt, x1,y1,x2,y2, SOURCE_X,SOURCE_Y);
+									 // (sdatapt + (SOURCE_X*y1) + (x1)),
+									 // (sdatapt + (SOURCE_X*y2) + (x1)), 
+									 // (sdatapt + (SOURCE_X*y1) + (x2)),
+									 // (sdatapt + (SOURCE_X*y2) + (x2))	); 
+	return qo;
+}
+
+__device__ unsigned int argb_dotsmulttiply(cudaTextureObject_t xytext, /*float4 *bmappt*/cudaTextureObject_t btext, char **sources, int y, int x){
 
 	uint4 xymap = tex2D<uint4>(xytext, x,y);
 	float4 bmap = tex2D<float4>(btext, x,y);
 	unsigned int sid = xymap.x >> 16;
 
-	unsigned char *sdatapt = sources[sid];//&sdata[sid][0][0];
+	char *sdatapt = sources[sid];//&sdata[sid][0][0];
 
 	unsigned int x1 = xymap.x & 0x0000FFFF;
 	unsigned int x2 = xymap.y;
@@ -908,17 +1017,17 @@ __device__ unsigned int argb_dotsmulttiply(cudaTextureObject_t xytext, /*float4 
 	return q;
 }
 
-__global__ void gray8_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, 	unsigned char *dev_source0,
-														unsigned char *dev_source1,
-														unsigned char *dev_source2,
-														unsigned char *dev_source3,
-														unsigned char *dev_source4,
-														unsigned char *dev_source5,
-														unsigned char *dev_plane){
+__global__ void gray8_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, char *dev_source0,
+														 char *dev_source1,
+														 char *dev_source2,
+														 char *dev_source3,
+														 char *dev_source4,
+														 char *dev_source5,
+														 char *dev_plane){
 
 	float nv_invec[3];
 	float nv_outvec[3];
-	unsigned char *sources[6];
+	char *sources[6];
 	unsigned int outd;
 
 	float3 cr,sp;
@@ -977,17 +1086,101 @@ __global__ void gray8_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_
 	
 }
 
-__global__ void argb_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, 	unsigned char *dev_source0,
-														unsigned char *dev_source1,
-														unsigned char *dev_source2,
-														unsigned char *dev_source3,
-														unsigned char *dev_source4,
-														unsigned char *dev_source5,
-														unsigned char *dev_plane){
+
+__global__ void yuv420_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, char *dev_source0,
+														char *dev_source1,
+														char *dev_source2,
+														char *dev_source3,
+														char *dev_source4,
+														char *dev_source5,
+														char *dev_plane){
 
 	float nv_invec[3];
 	float nv_outvec[3];
-	unsigned char *sources[6];
+	char *sources[6];
+	uchar4 out11d;
+
+	float3 cr,sp;
+	float jff, iff;
+
+	sources[0] = dev_source0;
+	sources[1] = dev_source1;
+	sources[2] = dev_source2;
+	sources[3] = dev_source3;
+	sources[4] = dev_source4;
+	sources[5] = dev_source5;
+
+	int jj = blockIdx.y * blockDim.y + threadIdx.y;
+    int ii = blockIdx.x * blockDim.x + threadIdx.x;
+
+	nv_invec[0] = ii;
+	nv_invec[1] = jj;
+	nv_invec[2] = 1;
+
+	mul3x3x1(dev_wm, nv_invec, nv_outvec);
+
+	cr.x = nv_outvec[0];
+	cr.y = nv_outvec[1];
+	cr.z = nv_outvec[2];
+
+	cart_to_sphere(&cr, &sp);
+	if (sp.y<0){
+		sp.y *= -1;
+		if (sp.x<M_PI)
+			sp.x +=M_PI;
+		else
+			sp.x -=M_PI;
+	}else if (sp.y>M_PI){
+		sp.y = M_PI - (sp.y - M_PI);
+		if (sp.x<M_PI)
+			sp.x +=M_PI;
+		else
+			sp.x -=M_PI;
+	}
+	if (sp.x<0){
+		sp.x = (2*M_PI) + sp.x;
+	}else if (sp.x>(2*M_PI))
+		sp.x = sp.x - (2*M_PI);
+		jff = phi_to_j(sp.y);
+		iff = theta_to_i(sp.x);
+
+
+
+		uchar4 q1 = yuv420_dotsmulttiply(xytext, btext, sources, floorf(jff), floorf(iff));
+		uchar4 q2 = yuv420_dotsmulttiply(xytext, btext, sources, ceilf(jff), floorf(iff));
+		uchar4 q3 = yuv420_dotsmulttiply(xytext, btext, sources, floorf(jff), ceilf(iff));
+		uchar4 q4 = yuv420_dotsmulttiply(xytext, btext, sources, ceilf(jff), ceilf(iff));
+	//	printf("hey %d %d %d\n", q1.x,q1.y,q1.z);
+		out11d = yuv420_map_dotsmulttiply(intermap, iff, jff, q1,q2,q3,q4 );
+
+		//printf("hey %d\n", (signed char)out11d.y);
+	
+		/*YUV420_Y(dev_plane, ii,jj,DEST_X)*/ *((unsigned char *)dev_plane + (DEST_X*jj) + ii) = (unsigned char)out11d.x;
+#if 0
+		if ((!(ii & 1)) && (!(jj & 1))){
+			/*YUV420_U(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *((char *)dev_plane + (DEST_X*DEST_Y) + (DEST_X*(jj/2)) + ii) = 0;//(char)outd.y;
+			/*YUV420_V(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *((char *)dev_plane + (DEST_X*DEST_Y) + (DEST_X*(jj/2)) + (DEST_X) + ii) = 0;//(char)outd.z;
+		}
+#endif
+		unsigned char *u = (unsigned char *)dev_plane + (DEST_X*DEST_Y) + ((DEST_X*DEST_Y)>>2);
+		//if ((!(ii & 1)) && (!(jj & 1))){
+			/*YUV420_U(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *((unsigned char *)dev_plane + (DEST_X*DEST_Y) + ((DEST_X>>1)*(jj>>1)) + (ii>>1)) = out11d.y;
+			/*YUV420_V(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *(u + ((DEST_X>>1)*(jj>>1)) + (ii>>1)) = out11d.z;
+		//}
+	
+}
+
+__global__ void argb_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, char *dev_source0,
+														char *dev_source1,
+														char *dev_source2,
+														char *dev_source3,
+														char *dev_source4,
+														char *dev_source5,
+														char *dev_plane){
+
+	float nv_invec[3];
+	float nv_outvec[3];
+	char *sources[6];
 	unsigned int outd;
 
 	float3 cr,sp;
@@ -1092,9 +1285,20 @@ extern "C" void gstcuda_process(void *priv, int id){
     							gstpano->dev.panodata[id]
     							);	
 		}else{
-			printf("not supported yet\n");
+			yuv420_create_pano<<<grid,block>>>(	gstpano->dev.intermap,
+									gstpano->dev.matrix,
+    								gstpano->xytext,
+    							gstpano->btext,
+    							gstpano->dev.sdata[id][0],
+    							gstpano->dev.sdata[id][1],
+    							gstpano->dev.sdata[id][2],
+    							gstpano->dev.sdata[id][3],
+    							gstpano->dev.sdata[id][4],
+    							gstpano->dev.sdata[id][5],
+    							gstpano->dev.panodata[id]
+    							);	
 		}
-	}else if (gstpano->incolorspace==2){ gray8
+	}else if (gstpano->incolorspace==2){ 
 		gray8_create_pano<<<grid,block>>>(	gstpano->dev.intermap,
 									gstpano->dev.matrix,
     								gstpano->xytext,
