@@ -941,20 +941,20 @@ __device__ uchar4 yuv420_interpolate_ptr(float4 bmap, char *src,
 	q22.z = /*YUV420_V(src,x2,y2,bbl, dimy);*/ *((unsigned char *)src + (bbl*dimy) + (bbl*dimy>>2) + ((bbl>>1)*y2>>1) + (x2>>1));
 	uchar4 r;
 
-	/*y*/ r.x = (int)q11.x*bmap.x +
+	/*y*/ r.x = (unsigned char)(q11.x*bmap.x +
 		q12.x*bmap.y +
 		q21.x*bmap.z +
-		q22.x*bmap.w;
+		q22.x*bmap.w);
 
-	/*u*/ r.y = (int)q11.y*bmap.x +
+	/*u*/ r.y = (unsigned char)(q11.y*bmap.x +
 		q12.y*bmap.y +
 		q21.y*bmap.z +
-		q22.y*bmap.w;
+		q22.y*bmap.w);
 
-	/*v*/ r.z = (int)q11.z*bmap.x +
+	/*v*/ r.z = (unsigned char)(q11.z*bmap.x +
 		q12.z*bmap.y +
 		q21.z*bmap.z +
-		q22.z*bmap.w;
+		q22.z*bmap.w);
 
 	
 	return r;
@@ -1086,19 +1086,32 @@ __global__ void gray8_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_
 	
 }
 
+__device__ uchar4 yuvtorgba(uchar4 yuv){
 
+	uchar4 ret;
+
+	//red
+	ret.x = 1.164*(yuv.x - 16) + 1.596*(yuv.z - 128);
+	//green
+	ret.y = 1.164*(yuv.x - 16) - 0.813*(yuv.z - 128) - 0.391*(yuv.y - 128);
+	//blue
+	ret.z = 1.164*(yuv.x - 16)                       + 2.018*(yuv.y - 128);
+	ret.w = 255;
+	return ret;
+}
 __global__ void yuv420_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, char *dev_source0,
 														char *dev_source1,
 														char *dev_source2,
 														char *dev_source3,
 														char *dev_source4,
 														char *dev_source5,
-														char *dev_plane){
+														char *dev_plane,
+														int outcolorspace){
 
 	float nv_invec[3];
 	float nv_outvec[3];
 	char *sources[6];
-	uchar4 out11d;
+	uchar4 out11d,rgba;
 
 	float3 cr,sp;
 	float jff, iff;
@@ -1112,6 +1125,9 @@ __global__ void yuv420_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev
 
 	int jj = blockIdx.y * blockDim.y + threadIdx.y;
     int ii = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int destx = blockDim.x * gridDim.x;
+    int desty = blockDim.y * gridDim.y;
 
 	nv_invec[0] = ii;
 	nv_invec[1] = jj;
@@ -1150,27 +1166,34 @@ __global__ void yuv420_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev
 		uchar4 q2 = yuv420_dotsmulttiply(xytext, btext, sources, ceilf(jff), floorf(iff));
 		uchar4 q3 = yuv420_dotsmulttiply(xytext, btext, sources, floorf(jff), ceilf(iff));
 		uchar4 q4 = yuv420_dotsmulttiply(xytext, btext, sources, ceilf(jff), ceilf(iff));
-	//	printf("hey %d %d %d\n", q1.x,q1.y,q1.z);
-		out11d = yuv420_map_dotsmulttiply(intermap, iff, jff, q1,q2,q3,q4 );
-
-		//printf("hey %d\n", (signed char)out11d.y);
 	
-		/*YUV420_Y(dev_plane, ii,jj,DEST_X)*/ *((unsigned char *)dev_plane + (DEST_X*jj) + ii) = (unsigned char)out11d.x;
-#if 0
-		if ((!(ii & 1)) && (!(jj & 1))){
-			/*YUV420_U(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *((char *)dev_plane + (DEST_X*DEST_Y) + (DEST_X*(jj/2)) + ii) = 0;//(char)outd.y;
-			/*YUV420_V(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *((char *)dev_plane + (DEST_X*DEST_Y) + (DEST_X*(jj/2)) + (DEST_X) + ii) = 0;//(char)outd.z;
+		out11d = yuv420_map_dotsmulttiply(intermap, iff, jff, q1,q2,q3,q4 );
+		if (outcolorspace==1){
+			*(dev_plane + (destx*jj) + ii) = (unsigned char)out11d.x;
+
+			if ((!(ii & 1)) && (!(jj & 1))){
+				*(dev_plane + (destx*desty) + ((destx>>1)*(jj>>1)) + (ii>>1)) = out11d.y;
+				*(dev_plane + (destx*desty) + ((destx*desty)>>2) + ((destx>>1)*(jj>>1)) + (ii>>1)) = out11d.z;
+			}
+		}else if (outcolorspace==3){ //3
+
+			rgba = yuvtorgba(out11d);
+			*(dev_plane + (4*jj*destx) + (4*ii)+0) = rgba.x; //red
+			*(dev_plane + (4*jj*destx) + (4*ii)+1) = rgba.y; //green
+			*(dev_plane + (4*jj*destx) + (4*ii)+2) = rgba.z; //blue
+			*(dev_plane + (4*jj*destx) + (4*ii)+3) = rgba.w;
+		}else if (outcolorspace==4){ //3
+			rgba = yuvtorgba(out11d);
+			
+			*(dev_plane + (3*jj*destx) + (4*ii)+0) = rgba.x; 
+			*(dev_plane + (3*jj*destx) + (4*ii)+1) = rgba.y;
+			*(dev_plane + (3*jj*destx) + (4*ii)+2) = rgba.z;
+			
 		}
-#endif
-		unsigned char *u = (unsigned char *)dev_plane + (DEST_X*DEST_Y) + ((DEST_X*DEST_Y)>>2);
-		//if ((!(ii & 1)) && (!(jj & 1))){
-			/*YUV420_U(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *((unsigned char *)dev_plane + (DEST_X*DEST_Y) + ((DEST_X>>1)*(jj>>1)) + (ii>>1)) = out11d.y;
-			/*YUV420_V(dev_plane, ii,jj,DEST_X,DEST_Y)*/ *(u + ((DEST_X>>1)*(jj>>1)) + (ii>>1)) = out11d.z;
-		//}
 	
 }
 
-__global__ void argb_create_pano(uchar4 *intermap, float *dev_wm, /*uint4 *dev_xymap*/ cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, char *dev_source0,
+__global__ void argb_create_pano(uchar4 *intermap, float *dev_wm, cudaTextureObject_t xytext, cudaTextureObject_t btext/*float4 *dev_bmap*/, char *dev_source0,
 														char *dev_source1,
 														char *dev_source2,
 														char *dev_source3,
@@ -1256,7 +1279,7 @@ extern "C" void gstcuda_process(void *priv, int id){
     dim3 block(32,32);
 
     cudaEventRecord(start);
-   	if (gstpano->incolorspace==0){ 
+   	if ((gstpano->incolorspace==0) && (gstpano->outcolorspace==0)){ //xrgb 
 		argb_create_pano<<<grid,block>>>(	gstpano->dev.intermap,
 									gstpano->dev.matrix,
     								gstpano->xytext,
@@ -1270,8 +1293,8 @@ extern "C" void gstcuda_process(void *priv, int id){
     							gstpano->dev.panodata[id]
     							);	
 
-	}else if (gstpano->incolorspace==1){ //i420
-		if (gstpano->yuvtogray8){
+	}else if ((gstpano->incolorspace==1) && (gstpano->outcolorspace==2)){ 
+		//if (gstpano->yuvtogray8){
 			gray8_create_pano<<<grid,block>>>(	gstpano->dev.intermap,
 									gstpano->dev.matrix,
     								gstpano->xytext,
@@ -1284,7 +1307,7 @@ extern "C" void gstcuda_process(void *priv, int id){
     							gstpano->dev.sdata[id][5],
     							gstpano->dev.panodata[id]
     							);	
-		}else{
+	}else if ((gstpano->incolorspace==1) && ((gstpano->outcolorspace==1) || (gstpano->outcolorspace==3) || (gstpano->outcolorspace==4))){
 			yuv420_create_pano<<<grid,block>>>(	gstpano->dev.intermap,
 									gstpano->dev.matrix,
     								gstpano->xytext,
@@ -1295,10 +1318,11 @@ extern "C" void gstcuda_process(void *priv, int id){
     							gstpano->dev.sdata[id][3],
     							gstpano->dev.sdata[id][4],
     							gstpano->dev.sdata[id][5],
-    							gstpano->dev.panodata[id]
+    							gstpano->dev.panodata[id],
+    							gstpano->outcolorspace
     							);	
-		}
-	}else if (gstpano->incolorspace==2){ 
+		
+	}else if ((gstpano->incolorspace==2) && (gstpano->outcolorspace==2)){ 
 		gray8_create_pano<<<grid,block>>>(	gstpano->dev.intermap,
 									gstpano->dev.matrix,
     								gstpano->xytext,
@@ -1310,7 +1334,12 @@ extern "C" void gstcuda_process(void *priv, int id){
     							gstpano->dev.sdata[id][4],
     							gstpano->dev.sdata[id][5],
     							gstpano->dev.panodata[id]
-    							);	
+    							);
+   
+
+
+
+
 	}else{
 
 		printf("invalid format\n");
@@ -1333,12 +1362,19 @@ extern "C" void gstcuda_get_output(void *priv, void *out, int id){
 	if (gstpano->outcolorspace==0) //argb
 		HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata, 4*gstpano->dest_width*gstpano->dest_height, cudaMemcpyDeviceToHost)); 
 	else if (gstpano->outcolorspace==1){ //yuv420
-		if (gstpano->yuvtogray8)
-			HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata[id], gstpano->dest_width*gstpano->dest_height, cudaMemcpyDeviceToHost)); 
-		else
+	//	if (gstpano->yuvtogray8)
+	//		HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata[id], gstpano->dest_width*gstpano->dest_height, cudaMemcpyDeviceToHost)); 
+	//	else
 			HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata[id], (3*gstpano->dest_width*gstpano->dest_height)/2, cudaMemcpyDeviceToHost)); 
 	}else if (gstpano->outcolorspace==2) {
 		HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata[id], gstpano->dest_width*gstpano->dest_height, cudaMemcpyDeviceToHost)); 
+	
+	}else if (gstpano->outcolorspace==3) {
+		HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata, 4*gstpano->dest_width*gstpano->dest_height, cudaMemcpyDeviceToHost)); 
+	}else if (gstpano->outcolorspace==4) {
+		HANDLE_ERROR(cudaMemcpy( out, gstpano->dev.panodata, 3*gstpano->dest_width*gstpano->dest_height, cudaMemcpyDeviceToHost)); 
+	}else{
+
 	}
 	cuCtxPopCurrent(NULL);
 }
@@ -1613,16 +1649,20 @@ extern "C" void gstpano_output_alloc(
 
 	for (ii=0;ii<2;ii++){
 
-    	if (gstpano->outcolorspace==0) //argb
+    	if (gstpano->outcolorspace==0) //xBGR
 			HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], 4*gstpano->dest_width*gstpano->dest_height ) );
 		else if (gstpano->outcolorspace==1){ //yuv420
-			if (yuvtogray8){
-				HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], gstpano->dest_width*gstpano->dest_height ) );
-			}else{
+			//if (yuvtogray8){
+			//	HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], gstpano->dest_width*gstpano->dest_height ) );
+			//}else{
 				HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], (3*gstpano->dest_width*gstpano->dest_height)/2 ) );
-			}
-		}else if (gstpano->outcolorspace==2){
+			//}
+		}else if (gstpano->outcolorspace==2){ //gray8
 			HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], gstpano->dest_width*gstpano->dest_height ) );	
+		}else if (gstpano->outcolorspace==3){ //RGBA
+			HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], 4*gstpano->dest_width*gstpano->dest_height ) );
+		}else if (gstpano->outcolorspace==4){ //RGB
+			HANDLE_ERROR( cudaMalloc( (void**)&gstpano->dev.panodata[ii], 3*gstpano->dest_width*gstpano->dest_height ) );
 		}else
 			printf("ERRRR2RRRRRRRRRRRRRRRRRRRRRRRRR\n");
 	}
