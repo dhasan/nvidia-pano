@@ -1,0 +1,3 @@
+[submodule "gst-template"]
+        path = nvidia-pano/plugin/gst-template
+        url = https://github.com/dhasan/pano-gst-plugin.git 
