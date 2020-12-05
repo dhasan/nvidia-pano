@@ -2,7 +2,7 @@
 Dynamic panoramic image stiching using nvidia GPU and CUDA framework
 
 # Architecture 
-Vide pipeline is wrapped with Gstreamer component
+Video pipeline, wrapped in Gstreamer component
 
 ![Architecture](https://github.com/dhasan/nvidia-pano/blob/master/images/1.png "Architecture")
 
